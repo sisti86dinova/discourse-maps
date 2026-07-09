@@ -18,7 +18,10 @@
 import Component from "@glimmer/component";
 import { service } from "@ember/service";
 import { hash } from "@ember/helper";
+import { htmlSafe } from "@ember/template";
 import { i18n } from "discourse-i18n";
+import { relativeAge } from "discourse/lib/formatter";
+import icon from "discourse/helpers/d-icon";
 import CategoryChooser from "select-kit/components/category-chooser";
 import TagChooser from "select-kit/components/tag-chooser";
 import DiscourseMapsMap from "./discourse-maps-map";
@@ -65,16 +68,30 @@ export default class MapPage extends Component {
     });
   }
 
-  // Righe per la lista sotto la mappa: categoria e tag risolti come link.
+  // Righe per la lista sotto la mappa: categoria/tag come link, statistiche
+  // (viste, like, commenti, attività) come nella topic-list nativa.
   get rows() {
-    return this.locatedTopics.map((topic) => ({
-      topic,
-      category: this.category(topic.category_id),
-      tags: (topic.tags || []).map((tag) => ({
-        name: tag,
-        url: `/tag/${tag}`,
-      })),
-    }));
+    return this.locatedTopics.map((topic) => {
+      const category = this.category(topic.category_id);
+
+      return {
+        topic,
+        category,
+        categoryStyle: category
+          ? htmlSafe(
+              `--category-badge-color: #${category.color};--category-badge-text-color: #${category.text_color};`
+            )
+          : null,
+        tags: (topic.tags || []).map((tag) => ({
+          name: tag,
+          url: `/tag/${tag}`,
+        })),
+        commentsCount: Math.max((topic.posts_count || 1) - 1, 0),
+        activityDate: topic.last_posted_at
+          ? relativeAge(new Date(topic.last_posted_at), { addAgo: false })
+          : null,
+      };
+    });
   }
 
   <template>
@@ -107,10 +124,29 @@ export default class MapPage extends Component {
         {{#each this.rows as |row|}}
           <div class="discourse-maps-list__item">
             {{#if row.topic.image_url}}
-              <a href={{row.topic.url}} class="discourse-maps-list__image-link">
-                <img src={{row.topic.image_url}} alt="" class="discourse-maps-list__image" />
-              </a>
+              <div class="discourse-maps-list__thumbnail">
+                <a href={{row.topic.url}} role="img" aria-label={{row.topic.title}}>
+                  <img src={{row.topic.image_url}} loading="lazy" alt="" />
+                </a>
+              </div>
             {{/if}}
+
+            <div class="discourse-maps-list__stats">
+              <span class="discourse-maps-list__stat">
+                {{icon "eye"}}<span class="number">{{row.topic.views}}</span>
+              </span>
+              <span class="discourse-maps-list__stat">
+                {{icon "heart"}}<span class="number">{{row.topic.like_count}}</span>
+              </span>
+              <span class="discourse-maps-list__stat">
+                {{icon "comment"}}<span class="number">{{row.commentsCount}}</span>
+              </span>
+              {{#if row.activityDate}}
+                <a href={{row.topic.url}} class="discourse-maps-list__stat post-activity">
+                  <span class="relative-date">{{row.activityDate}}</span>
+                </a>
+              {{/if}}
+            </div>
 
             <div class="discourse-maps-list__content">
               <a href={{row.topic.url}} class="discourse-maps-list__title">
@@ -119,12 +155,24 @@ export default class MapPage extends Component {
 
               <div class="discourse-maps-list__meta">
                 {{#if row.category}}
-                  <a href={{row.category.url}} class="discourse-maps-list__category">{{row.category.name}}</a>
+                  <a
+                    class="badge-category__wrapper"
+                    style={{row.categoryStyle}}
+                    href={{row.category.url}}
+                  >
+                    <span class="badge-category --style-square">
+                      <span class="badge-category__name">{{row.category.name}}</span>
+                    </span>
+                  </a>
                 {{/if}}
 
-                {{#each row.tags as |tag|}}
-                  <a href={{tag.url}} class="discourse-maps-list__tag">{{tag.name}}</a>
-                {{/each}}
+                {{#if row.tags.length}}
+                  <ul class="discourse-tags" aria-label="Tags">
+                    {{#each row.tags as |tag|}}
+                      <li><a href={{tag.url}} class="discourse-tag simple">{{tag.name}}</a></li>
+                    {{/each}}
+                  </ul>
+                {{/if}}
               </div>
             </div>
           </div>

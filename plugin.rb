@@ -101,6 +101,10 @@ after_initialize do
           tags: topic.tags.map(&:name),
           location: topic.custom_fields[LOCATION_FIELD],
           image_url: topic.image_url,
+          views: topic.views,
+          like_count: topic.like_count,
+          posts_count: topic.posts_count,
+          last_posted_at: topic.last_posted_at,
         }
       end
     end
