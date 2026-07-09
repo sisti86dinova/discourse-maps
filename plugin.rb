@@ -121,23 +121,40 @@ after_initialize do
       end
     end
 
-    # Opzioni disponibili per i filtri categoria/tag: solo quelle
-    # effettivamente presenti tra i topic mostrabili (senza filtri
-    # categoria/tag già applicati), per evitare selezioni che portano a
-    # zero risultati.
-    def self.map_filter_options(guardian)
+    # Opzioni disponibili per i filtri categoria/tag: incrociate tra loro
+    # (AND), così che scegliere una categoria aggiorni le opzioni di tag
+    # (e viceversa) mostrando solo quelle che non porterebbero a zero
+    # risultati con il filtro già impostato sull'altro campo.
+    def self.map_filter_options(guardian, category_id: nil, tag_names: [])
       base = base_map_scope(guardian)
       return { category_ids: [], tags: [] } unless base
 
       scope = base[:scope]
       tag = base[:tag]
 
-      category_ids = scope.distinct.pluck(:category_id).compact
+      # Categorie disponibili: rispettano il filtro tag già impostato.
+      scope_for_categories = scope
+      if tag_names.present?
+        Tag
+          .where(name: tag_names)
+          .pluck(:id)
+          .each do |tid|
+            scope_for_categories =
+              scope_for_categories.where(id: TopicTag.where(tag_id: tid).select(:topic_id))
+          end
+      end
+      category_ids = scope_for_categories.distinct.pluck(:category_id).compact
+
+      # Tag disponibili: rispettano il filtro categoria già impostato.
+      scope_for_tags = scope
+      scope_for_tags = scope_for_tags.where(category_id: category_id) if category_id.present?
 
       tag_ids =
-        TopicTag.where(topic_id: scope.select(:id)).where.not(tag_id: tag.id).distinct.pluck(
-          :tag_id,
-        )
+        TopicTag
+          .where(topic_id: scope_for_tags.select(:id))
+          .where.not(tag_id: tag.id)
+          .distinct
+          .pluck(:tag_id)
 
       tags = Tag.where(id: tag_ids).order(:name).pluck(:id, :name).map { |id, name| { id: id, name: name } }
 
@@ -211,7 +228,12 @@ after_initialize do
               category_id: params[:category_id],
               tag_names: Array(params[:tags]&.split(",")),
             )
-          filters = ::DiscourseMaps.map_filter_options(guardian)
+          filters =
+            ::DiscourseMaps.map_filter_options(
+              guardian,
+              category_id: params[:category_id],
+              tag_names: Array(params[:tags]&.split(",")),
+            )
 
           render json: { topics: topics, filters: filters }
         end

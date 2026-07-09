@@ -7,7 +7,8 @@ en:
         empty: "No geolocated topics yet."
       filters:
         all_categories: "All categories"
-        no_tags: "No tags available"
+        all_tags: "All tags"
+        reset: "Clear filters"
       composer:
         button_title: "Add a location to the map"
       modal:

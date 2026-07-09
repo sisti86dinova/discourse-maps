@@ -62,22 +62,17 @@
       flex: 1 1 220px;
     }
 
-    .discourse-maps-filters__category {
+    .discourse-maps-filters__category,
+    .discourse-maps-filters__tags {
       height: 2.5em;
       padding: 0 0.5em;
     }
 
-    .discourse-maps-filters__tags {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 0.4em;
-    }
-
-    .discourse-maps-filters__tag-toggle {
-      font-size: var(--font-down-1);
-      padding: 0.3em 0.75em;
-      border-radius: 999px;
+    .discourse-maps-filters__reset {
+      flex: 0 0 auto;
+      height: 2.5em;
+      padding: 0 1em;
+      border-radius: 4px;
       border: 1px solid var(--primary-low);
       background: var(--secondary);
       color: var(--primary);
@@ -86,18 +81,6 @@
       &:hover {
         background: var(--primary-low);
       }
-
-      &.is-active {
-        background: var(--tertiary);
-        border-color: var(--tertiary);
-        color: var(--secondary);
-      }
-    }
-
-    .discourse-maps-filters__tags-empty {
-      color: var(--primary-medium);
-      font-style: italic;
-      font-size: var(--font-down-1);
     }
 
     // Su smartphone i filtri vanno a tutta larghezza, uno sotto l'altro.

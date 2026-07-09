@@ -7,7 +7,8 @@ it:
         empty: "Nessun topic geolocalizzato al momento."
       filters:
         all_categories: "Tutte le categorie"
-        no_tags: "Nessun tag disponibile"
+        all_tags: "Tutti i tag"
+        reset: "Rimuovi filtri"
       composer:
         button_title: "Aggiungi una posizione alla mappa"
       modal:

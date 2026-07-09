@@ -25,7 +25,6 @@
 import Component from "@glimmer/component";
 import { tracked } from "@glimmer/tracking";
 import { service } from "@ember/service";
-import { fn } from "@ember/helper";
 import { on } from "@ember/modifier";
 import { htmlSafe } from "@ember/template";
 import didInsert from "@ember/render-modifiers/modifiers/did-insert";
@@ -80,21 +79,28 @@ export default class MapPage extends Component {
     return this.args.categoryId ? String(this.args.categoryId) : "";
   }
 
-  isTagSelected = (tagName) => {
-    return (this.args.selectedTags || []).includes(tagName);
-  };
+  // Un solo tag selezionabile per volta, come la categoria.
+  get selectedTagName() {
+    return (this.args.selectedTags && this.args.selectedTags[0]) || "";
+  }
+
+  get hasActiveFilters() {
+    return Boolean(this.args.categoryId) || Boolean(this.selectedTagName);
+  }
 
   handleCategoryChange = (event) => {
     const value = event.target.value;
     this.args.onChangeCategory(value ? parseInt(value, 10) : null);
   };
 
-  toggleTag = (tagName) => {
-    const current = this.args.selectedTags || [];
-    const next = current.includes(tagName)
-      ? current.filter((t) => t !== tagName)
-      : [...current, tagName];
-    this.args.onChangeTags(next);
+  handleTagChange = (event) => {
+    const value = event.target.value;
+    this.args.onChangeTags(value ? [value] : []);
+  };
+
+  resetFilters = () => {
+    this.args.onChangeCategory(null);
+    this.args.onChangeTags([]);
   };
 
   // Solo i topic che hanno una posizione valida (per mappa e lista). La
@@ -204,22 +210,26 @@ export default class MapPage extends Component {
           {{/each}}
         </select>
 
-        <div class="discourse-maps-filters__tags">
+        <select
+          class="discourse-maps-filters__tags"
+          value={{this.selectedTagName}}
+          {{on "change" this.handleTagChange}}
+        >
+          <option value="">{{i18n "discourse_maps.filters.all_tags"}}</option>
           {{#each this.availableTags as |tag|}}
-            <button
-              type="button"
-              class="discourse-maps-filters__tag-toggle
-                {{if (this.isTagSelected tag.name) 'is-active'}}"
-              {{on "click" (fn this.toggleTag tag.name)}}
-            >
-              {{tag.name}}
-            </button>
-          {{else}}
-            <span class="discourse-maps-filters__tags-empty">
-              {{i18n "discourse_maps.filters.no_tags"}}
-            </span>
+            <option value={{tag.name}}>{{tag.name}}</option>
           {{/each}}
-        </div>
+        </select>
+
+        {{#if this.hasActiveFilters}}
+          <button
+            type="button"
+            class="discourse-maps-filters__reset"
+            {{on "click" this.resetFilters}}
+          >
+            {{i18n "discourse_maps.filters.reset"}}
+          </button>
+        {{/if}}
       </div>
 
       {{! Mappa con tutti i pin del risultato filtrato. }}
