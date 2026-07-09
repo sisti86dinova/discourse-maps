@@ -2,8 +2,8 @@
   "name": "discourse-maps",
   "about": "Inserisci informazioni geografiche nei topic e visualizzale su una mappa interattiva.",
   "version": "0.0.1",
-  "authors": "TODO",
-  "url": "https://example.com/discourse-maps",
-  "contact_emails": ["TODO@example.com"]
+  "authors": "Stefano Sisti",
+  "url": "https://github.com/sisti86dinova/discourse-maps",
+  "contact_emails": ["stefano.sisti@dinova.one"]
 }
 

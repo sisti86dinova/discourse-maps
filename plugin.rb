@@ -13,10 +13,9 @@
 
 # name: discourse-maps
 # about: Inserisci informazioni geografiche nei topic e visualizzale su una mappa interattiva.
-# meta_topic_id: TODO
 # version: 0.0.1
-# authors: TODO
-# url: https://example.com/discourse-maps
+# authors: Stefano Sisti
+# url: https://github.com/sisti86dinova/discourse-maps
 # required_version: 2.7.0
 
 # Abilita/disabilita l'intero plugin tramite l'impostazione del pannello admin.
