@@ -49,21 +49,15 @@ after_initialize do
       Tag.find_by(id: SiteSetting.discourse_maps_map_tag_id)
     end
 
-    # Raccoglie i topic da mostrare nella pagina /map: quelli che hanno il tag
-    # "mappa" e che contengono dati geografici. Rispetta i permessi dell'utente
-    # (guardian) e restituisce solo i dati necessari a mappa e lista.
-    #
-    # Filtri opzionali:
-    #   - category_id : mostra solo i topic della categoria indicata;
-    #   - tag_names   : mostra solo i topic che hanno TUTTI i tag indicati
-    #                   (il vincolo del tag "mappa" resta sempre applicato).
-    def self.map_topics(guardian, category_id: nil, tag_names: [])
+    # Scope di base: topic con tag "mappa", posizione salvata e visibili
+    # all'utente (guardian). Non applica i filtri categoria/tag: è la base
+    # sia per l'elenco dei topic sia per calcolare le opzioni dei filtri.
+    def self.base_map_scope(guardian)
       tag = map_tag
-      return [] unless tag
+      return nil unless tag
 
-      # Id dei topic che hanno effettivamente una posizione salvata.
       topic_ids = TopicCustomField.where(name: LOCATION_FIELD).pluck(:topic_id)
-      return [] if topic_ids.empty?
+      return nil if topic_ids.empty?
 
       scope =
         Topic
@@ -72,6 +66,23 @@ after_initialize do
           .where(id: topic_ids)
           .joins(:topic_tags)
           .where(topic_tags: { tag_id: tag.id }) # vincolo tag "mappa"
+
+      { scope: scope, tag: tag }
+    end
+
+    # Raccoglie i topic da mostrare nella pagina /map, ordinati per data di
+    # creazione decrescente. Rispetta i permessi dell'utente (guardian) e
+    # restituisce solo i dati necessari a mappa e lista.
+    #
+    # Filtri opzionali:
+    #   - category_id : mostra solo i topic della categoria indicata;
+    #   - tag_names   : mostra solo i topic che hanno TUTTI i tag indicati
+    #                   (il vincolo del tag "mappa" resta sempre applicato).
+    def self.map_topics(guardian, category_id: nil, tag_names: [])
+      base = base_map_scope(guardian)
+      return [] unless base
+
+      scope = base[:scope]
 
       # Filtro per categoria.
       scope = scope.where(category_id: category_id) if category_id.present?
@@ -86,7 +97,7 @@ after_initialize do
           end
       end
 
-      topics = scope.includes(:tags).distinct.to_a
+      topics = scope.includes(:tags).distinct.order(created_at: :desc).to_a
 
       # Precarica i custom field per evitare query N+1.
       Topic.preload_custom_fields(topics, [LOCATION_FIELD])
@@ -105,8 +116,32 @@ after_initialize do
           like_count: topic.like_count,
           posts_count: topic.posts_count,
           last_posted_at: topic.last_posted_at,
+          created_at: topic.created_at,
         }
       end
+    end
+
+    # Opzioni disponibili per i filtri categoria/tag: solo quelle
+    # effettivamente presenti tra i topic mostrabili (senza filtri
+    # categoria/tag già applicati), per evitare selezioni che portano a
+    # zero risultati.
+    def self.map_filter_options(guardian)
+      base = base_map_scope(guardian)
+      return { category_ids: [], tags: [] } unless base
+
+      scope = base[:scope]
+      tag = base[:tag]
+
+      category_ids = scope.distinct.pluck(:category_id).compact
+
+      tag_ids =
+        TopicTag.where(topic_id: scope.select(:id)).where.not(tag_id: tag.id).distinct.pluck(
+          :tag_id,
+        )
+
+      tags = Tag.where(id: tag_ids).order(:name).pluck(:id, :name).map { |id, name| { id: id, name: name } }
+
+      { category_ids: category_ids, tags: tags }
     end
   end
 
@@ -176,8 +211,9 @@ after_initialize do
               category_id: params[:category_id],
               tag_names: Array(params[:tags]&.split(",")),
             )
+          filters = ::DiscourseMaps.map_filter_options(guardian)
 
-          render json: { topics: topics }
+          render json: { topics: topics, filters: filters }
         end
       end
     end

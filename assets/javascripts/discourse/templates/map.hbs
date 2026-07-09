@@ -1,6 +1,7 @@
 {{! Template della rotta /map: passa dati e stato dei filtri al componente. }}
 <MapPage
   @topics={{this.model.topics}}
+  @filters={{this.model.filters}}
   @categoryId={{this.category_id}}
   @selectedTags={{this.selectedTags}}
   @onChangeCategory={{this.updateCategory}}
