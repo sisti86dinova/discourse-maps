@@ -159,7 +159,8 @@
     gap: 1em;
     padding: 0;
     color: var(--primary-medium);
-    font-size: 14px;
+    font-size: 14px !important;
+    line-height: 1;
   }
 
   &__stat {
@@ -167,8 +168,9 @@
     flex-direction: row;
     align-items: center;
     gap: 0.3em;
-    font-size: 14px;
+    font-size: 14px !important;
     font-weight: 700;
+    line-height: 1;
     color: var(--primary-low-mid);
     
     .d-icon {
