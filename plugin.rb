@@ -102,6 +102,19 @@ after_initialize do
       # Precarica i custom field per evitare query N+1.
       Topic.preload_custom_fields(topics, [LOCATION_FIELD])
 
+      # Topic già letti (almeno un post) dall'utente corrente, per la classe
+      # "visited" nella lista (come nella topic-list nativa).
+      visited_topic_ids =
+        if guardian.user
+          TopicUser
+            .where(user_id: guardian.user.id, topic_id: topics.map(&:id))
+            .where("last_read_post_number > 0")
+            .pluck(:topic_id)
+            .to_set
+        else
+          Set.new
+        end
+
       topics.map do |topic|
         {
           id: topic.id,
@@ -117,6 +130,7 @@ after_initialize do
           posts_count: topic.posts_count,
           last_posted_at: topic.last_posted_at,
           created_at: topic.created_at,
+          visited: visited_topic_ids.include?(topic.id),
         }
       end
     end

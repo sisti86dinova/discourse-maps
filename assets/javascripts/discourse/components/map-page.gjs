@@ -155,11 +155,26 @@ export default class MapPage extends Component {
           url: `/tag/${tag}`,
         })),
         commentsCount: Math.max((topic.posts_count || 1) - 1, 0),
-        activityDate: topic.last_posted_at
-          ? relativeAge(new Date(topic.last_posted_at), { addAgo: false })
-          : null,
+        activityDate: this.formatActivityDate(topic),
       };
     });
+  }
+
+  // Data di attività mostrata nella lista: preferisce l'ultimo post, con
+  // fallback alla creazione del topic. Se il valore ricevuto non è una data
+  // valida non la mostriamo, invece di rischiare un "Invalid date".
+  formatActivityDate(topic) {
+    const raw = topic.last_posted_at || topic.created_at;
+    if (!raw) {
+      return null;
+    }
+
+    const date = new Date(raw);
+    if (Number.isNaN(date.getTime())) {
+      return null;
+    }
+
+    return relativeAge(date, { addAgo: false });
   }
 
   // Sottoinsieme di righe effettivamente visibili (paginazione a scroll).
@@ -221,15 +236,15 @@ export default class MapPage extends Component {
           {{/each}}
         </select>
 
-        {{#if this.hasActiveFilters}}
-          <button
-            type="button"
-            class="discourse-maps-filters__reset"
-            {{on "click" this.resetFilters}}
-          >
-            {{i18n "discourse_maps.filters.reset"}}
-          </button>
-        {{/if}}
+        <button
+          type="button"
+          class="discourse-maps-filters__reset
+            {{unless this.hasActiveFilters 'disabled'}}"
+          disabled={{if this.hasActiveFilters false true}}
+          {{on "click" this.resetFilters}}
+        >
+          {{i18n "discourse_maps.filters.reset"}}
+        </button>
       </div>
 
       {{! Mappa con tutti i pin del risultato filtrato. }}
@@ -238,7 +253,7 @@ export default class MapPage extends Component {
       {{! Lista dei topic geolocalizzati (ordinati per data, paginata a scroll). }}
       <div class="discourse-maps-list">
         {{#each this.visibleRows as |row|}}
-          <div class="discourse-maps-list__item">
+          <div class="discourse-maps-list__item {{if row.topic.visited 'visited'}}">
             {{#if row.topic.image_url}}
               <div class="discourse-maps-list__thumbnail">
                 <a href={{row.topic.url}} role="img" aria-label={{row.topic.title}}>

@@ -80,6 +80,13 @@
       &:hover {
         background: var(--primary-low);
       }
+
+      &.disabled,
+      &:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        pointer-events: none;
+      }
     }
 
     // Su smartphone i filtri vanno a tutta larghezza, uno sotto l'altro.
@@ -179,9 +186,15 @@
   &__title {
     display: block;
     font-size: var(--font-up-1);
-    font-weight: var(--topic-title-font-weight--visited);
+    font-weight: var(--topic-title-font-weight);
     color: var(--primary) !important;
     margin: 0;
+  }
+
+  // Topic già letto dall'utente corrente: titolo in stile "visitato",
+  // come nella topic-list nativa.
+  &__item.visited &__title {
+    font-weight: var(--topic-title-font-weight--visited);
   }
 
   &__meta {
