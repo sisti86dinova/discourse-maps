@@ -301,9 +301,7 @@ export default class MapPage extends Component {
                 {{icon "comment"}}<span class="number">{{row.commentsCount}}</span>
               </span>
               {{#if row.activityDate}}
-                <a href={{row.topic.url}} class="discourse-maps-list__stat post-activity">
-                  <span class="relative-date">{{row.activityDate}}</span>
-                </a>
+                <span class="relative-date">{{row.activityDate}}</span>
               {{/if}}
             </div>
           </div>

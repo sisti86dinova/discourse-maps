@@ -164,16 +164,15 @@
 
   &__stat {
     display: inline-flex;
+    flex-direction: row;
     align-items: center;
-    gap: 0.3em;
-    color: var(--primary-medium);
-
-    &.post-activity {
-      margin-left: auto;
-    }
-
+    gap: 1em;
+    font-size: var(--font-down-1);
+    font-weight: 700;
+    color: var(--primary-low-mid);
+    
     .d-icon {
-      color: var(--primary-medium);
+      color: var(--primary-low-mid);
     }
   }
 
