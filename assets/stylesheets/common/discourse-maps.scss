@@ -26,3 +26,30 @@
   }
 }
 
+// Contenitore della mappa mostrata nella pagina del topic.
+.discourse-maps-topic {
+  margin: 0 0 1.5em;
+}
+
+// Form del modal di inserimento posizione.
+.discourse-maps-form {
+  .control-group {
+    margin-bottom: 0.75em;
+
+    label {
+      display: block;
+      font-weight: 700;
+      margin-bottom: 0.25em;
+    }
+
+    input {
+      width: 100%;
+    }
+  }
+
+  &__error {
+    margin-top: 0.75em;
+  }
+}
+
+

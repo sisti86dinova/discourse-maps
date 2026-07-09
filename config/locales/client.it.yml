@@ -1,8 +1,24 @@
 it:
   js:
     discourse_maps:
-      # Segnaposto di traduzioni lato client.
-      # Verranno popolate negli step successivi (composer, pagina /map, filtri).
       title: "Mappa"
       page_title: "Mappa"
+      composer:
+        button_title: "Aggiungi una posizione alla mappa"
+      modal:
+        title: "Posizione del topic"
+        save: "Salva posizione"
+        remove: "Rimuovi posizione"
+        cancel: "Annulla"
+        fields:
+          street: "Via"
+          house_number: "Civico"
+          postcode: "CAP"
+          city: "Città"
+          country: "Nazione"
+        errors:
+          generic: "Impossibile trovare l'indirizzo. Controlla i dati inseriti."
+          not_found: "Nessun risultato trovato per questo indirizzo."
+          empty_address: "Inserisci almeno un campo dell'indirizzo."
+
 

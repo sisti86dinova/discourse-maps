@@ -9,7 +9,7 @@ topic e di visualizzarle su una mappa interattiva, con una pagina dedicata
 Lo sviluppo procede per gradi. Stato attuale:
 
 - [x] **Step 1 — Struttura del plugin** (scheletro, impostazioni, traduzioni)
-- [ ] **Step 2 — Inserimento dati geografici nel composer** + tag automatico (id 295)
+- [x] **Step 2 — Inserimento dati geografici nel composer** + tag automatico (id 295)
 - [ ] **Step 3 — Pagina `/map` con mappa interattiva**
 - [ ] **Step 4 — Filtri per categorie e tag**
 
@@ -47,9 +47,18 @@ discourse-maps/
 │       └── client.it.yml         # Traduzioni lato client (IT)
 └── assets/
     ├── javascripts/discourse/
-    │   └── initializers/
-    │       └── discourse-maps.js # Initializer principale (scheletro)
+    │   ├── initializers/
+    │   │   └── discourse-maps.js          # Pulsante composer + serializzazione
+    │   ├── components/
+    │   │   ├── discourse-maps-map.gjs      # Mappa riutilizzabile (Leaflet/Google)
+    │   │   └── discourse-maps-location-modal.gjs  # Modal inserimento indirizzo
+    │   ├── connectors/topic-above-post-stream/
+    │   │   └── discourse-maps-topic-map.gjs  # Mappa nella pagina del topic
+    │   └── lib/
+    │       └── discourse-maps-provider.js  # Astrazione provider + geocoding
     └── stylesheets/common/
-        └── discourse-maps.scss   # Stili comuni + media query responsive
+        └── discourse-maps.scss             # Stili comuni + media query responsive
 ```
+
+
 

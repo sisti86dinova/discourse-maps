@@ -1,8 +1,24 @@
 en:
   js:
     discourse_maps:
-      # Placeholder di traduzioni lato client.
-      # Verranno popolate negli step successivi (composer, pagina /map, filtri).
       title: "Map"
       page_title: "Map"
+      composer:
+        button_title: "Add a location to the map"
+      modal:
+        title: "Topic location"
+        save: "Save location"
+        remove: "Remove location"
+        cancel: "Cancel"
+        fields:
+          street: "Street"
+          house_number: "House number"
+          postcode: "Postcode"
+          city: "City"
+          country: "Country"
+        errors:
+          generic: "Unable to find the address. Please check the entered data."
+          not_found: "No results found for this address."
+          empty_address: "Enter at least one field of the address."
+
 
