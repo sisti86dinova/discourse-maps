@@ -240,6 +240,9 @@ export default class MapPage extends Component {
     <div class="discourse-maps-page" {{didUpdate this.resetPaging @topics}}>
       <h1 class="discourse-maps-page__title">{{i18n "discourse_maps.page_title"}}</h1>
 
+      {{! Mappa con tutti i pin del risultato filtrato. }}
+      <DiscourseMapsMap @markers={{this.markers}} @interactive={{true}} />
+
       {{! Filtri: categoria e tag, solo quelli presenti tra i topic elencati. }}
       <div class="discourse-maps-filters">
         <select
@@ -274,9 +277,6 @@ export default class MapPage extends Component {
           {{i18n "discourse_maps.filters.reset"}}
         </button>
       </div>
-
-      {{! Mappa con tutti i pin del risultato filtrato. }}
-      <DiscourseMapsMap @markers={{this.markers}} @interactive={{true}} />
 
       {{! Lista dei topic geolocalizzati (ordinati per data, paginata a scroll). }}
       <div class="discourse-maps-list">
