@@ -13,9 +13,13 @@
 
 import loadScript from "discourse/lib/load-script";
 
-// URL delle librerie esterne (CDN).
-const LEAFLET_JS = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
-const LEAFLET_CSS = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+// Leaflet è vendorizzato nel plugin (public/leaflet/) invece di essere
+// caricato da una CDN esterna (unpkg): il forum potrebbe girare dietro una
+// rete privata senza accesso a internet per le librerie statiche. I
+// provider di geocoding/tiles (LocationIQ, Google, OpenStreetMap) restano
+// invece servizi live e richiedono comunque accesso alla rete esterna.
+const LEAFLET_JS = "/plugins/discourse-maps/leaflet/leaflet.js";
+const LEAFLET_CSS = "/plugins/discourse-maps/leaflet/leaflet.css";
 
 // Vista di default (centro Italia) quando non ci sono coordinate valide.
 const DEFAULT_CENTER = { lat: 41.9, lng: 12.5 };
