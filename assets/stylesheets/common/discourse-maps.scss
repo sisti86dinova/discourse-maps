@@ -41,6 +41,31 @@
     margin-bottom: 0.75em;
   }
 
+  // Barra dei filtri (categoria + tag).
+  .discourse-maps-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75em;
+    margin-bottom: 1em;
+
+    .discourse-maps-filters__category,
+    .discourse-maps-filters__tags {
+      min-width: 220px;
+      flex: 1 1 220px;
+    }
+
+    // Su smartphone i filtri vanno a tutta larghezza, uno sotto l'altro.
+    @media screen and (max-width: 767px) {
+      flex-direction: column;
+
+      .discourse-maps-filters__category,
+      .discourse-maps-filters__tags {
+        min-width: 0;
+        flex: 1 1 auto;
+      }
+    }
+  }
+
   // Nella pagina /map la mappa è più alta rispetto a quella nei topic.
   .discourse-map {
     height: 500px;

@@ -1,3 +1,9 @@
-{{! Template della rotta /map: delega tutto al componente MapPage. }}
-<MapPage @topics={{this.model.topics}} />
+{{! Template della rotta /map: passa dati e stato dei filtri al componente. }}
+<MapPage
+  @topics={{this.model.topics}}
+  @categoryId={{this.category_id}}
+  @selectedTags={{this.selectedTags}}
+  @onChangeCategory={{this.updateCategory}}
+  @onChangeTags={{this.updateTags}}
+/>
 

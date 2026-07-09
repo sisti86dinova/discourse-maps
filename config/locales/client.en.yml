@@ -5,6 +5,9 @@ en:
       page_title: "Map"
       list:
         empty: "No geolocated topics yet."
+      filters:
+        all_categories: "All categories"
+        tags_placeholder: "Filter by tags"
       composer:
         button_title: "Add a location to the map"
       modal:

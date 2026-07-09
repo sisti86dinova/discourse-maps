@@ -7,13 +7,20 @@
 //    2. sotto, la lista dei topic corrispondenti.
 //
 //  Argomenti:
-//    @topics - array di topic ({ id, title, fancy_title, url, category_id,
-//              tags, location }) fornito dalla rotta /map.
+//    @topics          - array di topic ({ id, title, fancy_title, url,
+//                       category_id, tags, location }) dalla rotta /map.
+//    @categoryId      - id della categoria attualmente selezionata (filtro).
+//    @selectedTags    - array dei tag attualmente selezionati (filtro).
+//    @onChangeCategory - callback(categoryId) al cambio del filtro categoria.
+//    @onChangeTags     - callback(tags[]) al cambio del filtro tag.
 // ============================================================================
 
 import Component from "@glimmer/component";
 import { service } from "@ember/service";
+import { hash } from "@ember/helper";
 import { i18n } from "discourse-i18n";
+import CategoryChooser from "select-kit/components/category-chooser";
+import TagChooser from "select-kit/components/tag-chooser";
 import DiscourseMapsMap from "./discourse-maps-map";
 
 export default class MapPage extends Component {
@@ -71,6 +78,24 @@ export default class MapPage extends Component {
   <template>
     <div class="discourse-maps-page">
       <h1 class="discourse-maps-page__title">{{i18n "discourse_maps.page_title"}}</h1>
+
+      {{! Filtri: categoria e tag (il tag "mappa" resta sempre applicato lato server). }}
+      <div class="discourse-maps-filters">
+        <CategoryChooser
+          @value={{@categoryId}}
+          @onChange={{@onChangeCategory}}
+          @options={{hash none="discourse_maps.filters.all_categories"}}
+          class="discourse-maps-filters__category"
+        />
+
+        <TagChooser
+          @tags={{@selectedTags}}
+          @onChange={{@onChangeTags}}
+          @everyTag={{true}}
+          @options={{hash filterPlaceholder="discourse_maps.filters.tags_placeholder"}}
+          class="discourse-maps-filters__tags"
+        />
+      </div>
 
       {{! Mappa con tutti i pin. }}
       <DiscourseMapsMap @markers={{this.markers}} @interactive={{true}} />

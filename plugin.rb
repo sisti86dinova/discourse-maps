@@ -52,7 +52,12 @@ after_initialize do
     # Raccoglie i topic da mostrare nella pagina /map: quelli che hanno il tag
     # "mappa" e che contengono dati geografici. Rispetta i permessi dell'utente
     # (guardian) e restituisce solo i dati necessari a mappa e lista.
-    def self.map_topics(guardian)
+    #
+    # Filtri opzionali:
+    #   - category_id : mostra solo i topic della categoria indicata;
+    #   - tag_names   : mostra solo i topic che hanno TUTTI i tag indicati
+    #                   (il vincolo del tag "mappa" resta sempre applicato).
+    def self.map_topics(guardian, category_id: nil, tag_names: [])
       tag = map_tag
       return [] unless tag
 
@@ -60,15 +65,28 @@ after_initialize do
       topic_ids = TopicCustomField.where(name: LOCATION_FIELD).pluck(:topic_id)
       return [] if topic_ids.empty?
 
-      topics =
+      scope =
         Topic
           .listable_topics
           .secured(guardian)
           .where(id: topic_ids)
           .joins(:topic_tags)
-          .where(topic_tags: { tag_id: tag.id })
-          .includes(:tags)
-          .to_a
+          .where(topic_tags: { tag_id: tag.id }) # vincolo tag "mappa"
+
+      # Filtro per categoria.
+      scope = scope.where(category_id: category_id) if category_id.present?
+
+      # Filtro per tag: il topic deve possedere tutti i tag selezionati.
+      if tag_names.present?
+        Tag
+          .where(name: tag_names)
+          .pluck(:id)
+          .each do |tid|
+            scope = scope.where(id: TopicTag.where(tag_id: tid).select(:topic_id))
+          end
+      end
+
+      topics = scope.includes(:tags).distinct.to_a
 
       # Precarica i custom field per evitare query N+1.
       Topic.preload_custom_fields(topics, [LOCATION_FIELD])
@@ -144,8 +162,18 @@ after_initialize do
         # Avvia l'applicazione Ember: sarà la rotta client a chiedere il JSON.
         format.html { render "default/empty" }
 
-        # Dati per la mappa e la lista, filtrati per permessi utente.
-        format.json { render json: { topics: ::DiscourseMaps.map_topics(guardian) } }
+        # Dati per la mappa e la lista, filtrati per permessi utente e per gli
+        # eventuali filtri di categoria/tag passati come parametri di query.
+        format.json do
+          topics =
+            ::DiscourseMaps.map_topics(
+              guardian,
+              category_id: params[:category_id],
+              tag_names: Array(params[:tags]&.split(",")),
+            )
+
+          render json: { topics: topics }
+        end
       end
     end
   end

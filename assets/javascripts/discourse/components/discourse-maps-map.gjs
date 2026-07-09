@@ -15,13 +15,15 @@ import Component from "@glimmer/component";
 import { action } from "@ember/object";
 import { service } from "@ember/service";
 import didInsert from "@ember/render-modifiers/modifiers/did-insert";
+import didUpdate from "@ember/render-modifiers/modifiers/did-update";
 import willDestroy from "@ember/render-modifiers/modifiers/will-destroy";
 import { createMap } from "../lib/discourse-maps-provider";
 
 export default class DiscourseMapsMap extends Component {
   @service siteSettings;
 
-  // Riferimento alla mappa creata, per poterla distruggere quando serve.
+  // Riferimenti al contenitore e alla mappa creata.
+  element = null;
   mapHandle = null;
 
   // Marker da mostrare: preferisce @markers, altrimenti usa @location singolo.
@@ -39,14 +41,28 @@ export default class DiscourseMapsMap extends Component {
       : this.siteSettings.discourse_maps_locationiq_api_key;
   }
 
-  @action
-  async setup(element) {
-    this.mapHandle = await createMap(element, {
+  // Costruisce (o ricostruisce) la mappa nel contenitore memorizzato.
+  async build() {
+    this.mapHandle = await createMap(this.element, {
       provider: this.siteSettings.discourse_maps_provider,
       apiKey: this.apiKey,
       markers: this.markers,
       interactive: this.args.interactive ?? true,
     });
+  }
+
+  @action
+  async setup(element) {
+    this.element = element;
+    await this.build();
+  }
+
+  // Ricostruisce la mappa quando i marker (o la posizione) cambiano, ad es.
+  // al variare dei filtri nella pagina /map.
+  @action
+  async refresh() {
+    this.mapHandle?.destroy?.();
+    await this.build();
   }
 
   @action
@@ -59,6 +75,7 @@ export default class DiscourseMapsMap extends Component {
     <div
       class="discourse-map"
       {{didInsert this.setup}}
+      {{didUpdate this.refresh this.args.markers this.args.location}}
       {{willDestroy this.teardown}}
     ></div>
   </template>

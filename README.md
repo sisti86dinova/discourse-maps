@@ -11,7 +11,7 @@ Lo sviluppo procede per gradi. Stato attuale:
 - [x] **Step 1 — Struttura del plugin** (scheletro, impostazioni, traduzioni)
 - [x] **Step 2 — Inserimento dati geografici nel composer** + tag automatico (id 295)
 - [x] **Step 3 — Pagina `/map` con mappa interattiva**
-- [ ] **Step 4 — Filtri per categorie e tag**
+- [x] **Step 4 — Filtri per categorie e tag**
 
 ## Configurazione
 
@@ -52,6 +52,8 @@ discourse-maps/
     │   │   └── discourse-maps.js          # Pulsante composer + serializzazione + link sidebar
     │   ├── routes/
     │   │   └── map.js                      # Rotta /map (carica i topic dal server)
+    │   ├── controllers/
+    │   │   └── map.js                      # Query param dei filtri (categoria/tag)
     │   ├── templates/
     │   │   └── map.hbs                     # Template della pagina /map
     │   ├── components/
