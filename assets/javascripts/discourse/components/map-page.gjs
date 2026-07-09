@@ -31,12 +31,24 @@ import didInsert from "@ember/render-modifiers/modifiers/did-insert";
 import didUpdate from "@ember/render-modifiers/modifiers/did-update";
 import willDestroy from "@ember/render-modifiers/modifiers/will-destroy";
 import { i18n } from "discourse-i18n";
-import { relativeAge } from "discourse/lib/formatter";
 import icon from "discourse/helpers/d-icon";
 import DiscourseMapsMap from "./discourse-maps-map";
 
 // Quanti topic mostrare per volta nella lista (caricamento a scroll).
 const PAGE_SIZE = 10;
+
+// Soglie per il formato relativo (secondi -> unità), stesso approccio della
+// ricetta MDN per Intl.RelativeTimeFormat: nessuna dipendenza esterna, quindi
+// nessun rischio di ereditare un "Invalid date" da altre utility.
+const RELATIVE_TIME_DIVISIONS = [
+  { amount: 60, unit: "second" },
+  { amount: 60, unit: "minute" },
+  { amount: 24, unit: "hour" },
+  { amount: 7, unit: "day" },
+  { amount: 4.34524, unit: "week" },
+  { amount: 12, unit: "month" },
+  { amount: Number.POSITIVE_INFINITY, unit: "year" },
+];
 
 export default class MapPage extends Component {
   @service site;
@@ -162,7 +174,9 @@ export default class MapPage extends Component {
 
   // Data di attività mostrata nella lista: preferisce l'ultimo post, con
   // fallback alla creazione del topic. Se il valore ricevuto non è una data
-  // valida non la mostriamo, invece di rischiare un "Invalid date".
+  // valida non la mostriamo, invece di rischiare un "Invalid date". Il
+  // formato relativo è calcolato qui (Intl.RelativeTimeFormat nativo),
+  // senza dipendere da altre utility di date.
   formatActivityDate(topic) {
     const raw = topic.last_posted_at || topic.created_at;
     if (!raw) {
@@ -170,11 +184,25 @@ export default class MapPage extends Component {
     }
 
     const date = new Date(raw);
-    if (Number.isNaN(date.getTime())) {
+    const time = date.getTime();
+    if (Number.isNaN(time)) {
       return null;
     }
 
-    return relativeAge(date, { addAgo: false });
+    let duration = (time - Date.now()) / 1000;
+
+    for (const division of RELATIVE_TIME_DIVISIONS) {
+      if (Math.abs(duration) < division.amount) {
+        const formatter = new Intl.RelativeTimeFormat(
+          document.documentElement.lang || undefined,
+          { numeric: "auto" }
+        );
+        return formatter.format(Math.round(duration), division.unit);
+      }
+      duration /= division.amount;
+    }
+
+    return null;
   }
 
   // Sottoinsieme di righe effettivamente visibili (paginazione a scroll).
