@@ -10,7 +10,7 @@ Lo sviluppo procede per gradi. Stato attuale:
 
 - [x] **Step 1 — Struttura del plugin** (scheletro, impostazioni, traduzioni)
 - [x] **Step 2 — Inserimento dati geografici nel composer** + tag automatico (id 295)
-- [ ] **Step 3 — Pagina `/map` con mappa interattiva**
+- [x] **Step 3 — Pagina `/map` con mappa interattiva**
 - [ ] **Step 4 — Filtri per categorie e tag**
 
 ## Configurazione
@@ -47,11 +47,17 @@ discourse-maps/
 │       └── client.it.yml         # Traduzioni lato client (IT)
 └── assets/
     ├── javascripts/discourse/
+    │   ├── discourse-maps-route-map.js     # Registrazione rotta client /map
     │   ├── initializers/
-    │   │   └── discourse-maps.js          # Pulsante composer + serializzazione
+    │   │   └── discourse-maps.js          # Pulsante composer + serializzazione + link sidebar
+    │   ├── routes/
+    │   │   └── map.js                      # Rotta /map (carica i topic dal server)
+    │   ├── templates/
+    │   │   └── map.hbs                     # Template della pagina /map
     │   ├── components/
     │   │   ├── discourse-maps-map.gjs      # Mappa riutilizzabile (Leaflet/Google)
-    │   │   └── discourse-maps-location-modal.gjs  # Modal inserimento indirizzo
+    │   │   ├── discourse-maps-location-modal.gjs  # Modal inserimento indirizzo
+    │   │   └── map-page.gjs                # Pagina /map: mappa + lista topic
     │   ├── connectors/topic-above-post-stream/
     │   │   └── discourse-maps-topic-map.gjs  # Mappa nella pagina del topic
     │   └── lib/

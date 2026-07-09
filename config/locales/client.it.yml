@@ -3,6 +3,8 @@ it:
     discourse_maps:
       title: "Mappa"
       page_title: "Mappa"
+      list:
+        empty: "Nessun topic geolocalizzato al momento."
       composer:
         button_title: "Aggiungi una posizione alla mappa"
       modal:

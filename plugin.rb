@@ -48,6 +48,43 @@ after_initialize do
     def self.map_tag
       Tag.find_by(id: SiteSetting.discourse_maps_map_tag_id)
     end
+
+    # Raccoglie i topic da mostrare nella pagina /map: quelli che hanno il tag
+    # "mappa" e che contengono dati geografici. Rispetta i permessi dell'utente
+    # (guardian) e restituisce solo i dati necessari a mappa e lista.
+    def self.map_topics(guardian)
+      tag = map_tag
+      return [] unless tag
+
+      # Id dei topic che hanno effettivamente una posizione salvata.
+      topic_ids = TopicCustomField.where(name: LOCATION_FIELD).pluck(:topic_id)
+      return [] if topic_ids.empty?
+
+      topics =
+        Topic
+          .listable_topics
+          .secured(guardian)
+          .where(id: topic_ids)
+          .joins(:topic_tags)
+          .where(topic_tags: { tag_id: tag.id })
+          .includes(:tags)
+          .to_a
+
+      # Precarica i custom field per evitare query N+1.
+      Topic.preload_custom_fields(topics, [LOCATION_FIELD])
+
+      topics.map do |topic|
+        {
+          id: topic.id,
+          title: topic.title,
+          fancy_title: topic.fancy_title,
+          url: "/t/#{topic.slug}/#{topic.id}",
+          category_id: topic.category_id,
+          tags: topic.tags.map(&:name),
+          location: topic.custom_fields[LOCATION_FIELD],
+        }
+      end
+    end
   end
 
   # Registra il tipo del campo custom come JSON: in lettura otterremo un Hash,
@@ -90,6 +127,31 @@ after_initialize do
     :discourse_maps_location,
     include_condition: -> { object.topic.custom_fields[::DiscourseMaps::LOCATION_FIELD].present? },
   ) { object.topic.custom_fields[::DiscourseMaps::LOCATION_FIELD] }
+
+  # --------------------------------------------------------------------------
+  #  Controller della pagina /map.
+  #   - richiesta HTML: avvia l'app Ember (che poi renderizza la pagina);
+  #   - richiesta JSON: restituisce i topic con tag mappa + posizione.
+  # --------------------------------------------------------------------------
+  class ::DiscourseMaps::MapController < ::ApplicationController
+    requires_plugin ::DiscourseMaps::PLUGIN_NAME
+
+    # Per il caricamento diretto della pagina (HTML) non è una richiesta XHR.
+    skip_before_action :check_xhr, only: [:index]
+
+    def index
+      respond_to do |format|
+        # Avvia l'applicazione Ember: sarà la rotta client a chiedere il JSON.
+        format.html { render "default/empty" }
+
+        # Dati per la mappa e la lista, filtrati per permessi utente.
+        format.json { render json: { topics: ::DiscourseMaps.map_topics(guardian) } }
+      end
+    end
+  end
+
+  # Registra la rotta /map (serve sia l'HTML sia /map.json).
+  Discourse::Application.routes.append { get "/map" => "discourse_maps/map#index" }
 end
 
 

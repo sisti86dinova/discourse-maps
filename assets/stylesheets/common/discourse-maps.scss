@@ -31,6 +31,66 @@
   margin: 0 0 1.5em;
 }
 
+// Pagina /map: mappa in alto + lista dei topic sotto.
+.discourse-maps-page {
+  max-width: 1100px;
+  margin: 1em auto;
+  padding: 0 1em;
+
+  &__title {
+    margin-bottom: 0.75em;
+  }
+
+  // Nella pagina /map la mappa è più alta rispetto a quella nei topic.
+  .discourse-map {
+    height: 500px;
+
+    @media screen and (max-width: 1024px) {
+      height: 400px;
+    }
+
+    @media screen and (max-width: 767px) {
+      height: 300px;
+    }
+  }
+}
+
+// Lista dei topic sotto la mappa.
+.discourse-maps-list {
+  margin-top: 1.5em;
+
+  &__item {
+    padding: 0.75em 0;
+    border-bottom: 1px solid var(--primary-low);
+  }
+
+  &__title {
+    font-size: var(--font-up-1);
+    font-weight: 700;
+  }
+
+  &__meta {
+    margin-top: 0.35em;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4em;
+  }
+
+  &__category,
+  &__tag {
+    font-size: var(--font-down-1);
+    padding: 0.15em 0.5em;
+    border-radius: 4px;
+    background: var(--primary-low);
+    color: var(--primary-high);
+  }
+
+  &__empty {
+    color: var(--primary-medium);
+    font-style: italic;
+  }
+}
+
 // Form del modal di inserimento posizione.
 .discourse-maps-form {
   .control-group {

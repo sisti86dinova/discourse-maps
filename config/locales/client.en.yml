@@ -3,6 +3,8 @@ en:
     discourse_maps:
       title: "Map"
       page_title: "Map"
+      list:
+        empty: "No geolocated topics yet."
       composer:
         button_title: "Add a location to the map"
       modal:

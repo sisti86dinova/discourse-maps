@@ -10,6 +10,7 @@
 // ============================================================================
 
 import { withPluginApi } from "discourse/lib/plugin-api";
+import { i18n } from "discourse-i18n";
 import DiscourseMapsLocationModal from "../components/discourse-maps-location-modal";
 
 export default {
@@ -23,6 +24,15 @@ export default {
       if (!siteSettings.discourse_maps_enabled) {
         return;
       }
+
+      // --- Link alla pagina /map nella sidebar -----------------------------
+      api.addCommunitySectionLink({
+        name: "discourse-maps",
+        route: "map",
+        title: i18n("discourse_maps.page_title"),
+        text: i18n("discourse_maps.page_title"),
+        icon: "map",
+      });
 
       // --- Serializzazione dei dati geografici -----------------------------
       // Invia "discourse_maps_location" al server alla creazione del topic...
