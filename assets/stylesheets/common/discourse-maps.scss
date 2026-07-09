@@ -64,16 +64,13 @@
     margin-top: 1em;
     margin-bottom: 1em;
 
+    // Categoria e tag usano il ComboBox nativo di Discourse (select-kit):
+    // qui serve solo il dimensionamento nel flex della barra filtri, lo
+    // stile del controllo in sé arriva dal CSS di select-kit.
     .discourse-maps-filters__category,
     .discourse-maps-filters__tags {
       min-width: 220px;
       flex: 1 1 220px;
-    }
-
-    .discourse-maps-filters__category,
-    .discourse-maps-filters__tags {
-      height: 2.5em;
-      padding: 0 0.5em;
     }
 
     .discourse-maps-filters__reset {

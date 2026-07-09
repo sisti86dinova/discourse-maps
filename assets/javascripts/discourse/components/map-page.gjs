@@ -25,6 +25,7 @@
 import Component from "@glimmer/component";
 import { tracked } from "@glimmer/tracking";
 import { service } from "@ember/service";
+import { hash } from "@ember/helper";
 import { on } from "@ember/modifier";
 import { htmlSafe } from "@ember/template";
 import didInsert from "@ember/render-modifiers/modifiers/did-insert";
@@ -32,6 +33,7 @@ import didUpdate from "@ember/render-modifiers/modifiers/did-update";
 import willDestroy from "@ember/render-modifiers/modifiers/will-destroy";
 import { i18n } from "discourse-i18n";
 import icon from "discourse/helpers/d-icon";
+import ComboBox from "discourse/select-kit/components/combo-box";
 import DiscourseMapsMap from "./discourse-maps-map";
 
 // Quanti topic mostrare per volta nella lista (caricamento a scroll).
@@ -91,26 +93,20 @@ export default class MapPage extends Component {
     return this.args.filters?.tags || [];
   }
 
-  get categoryIdString() {
-    return this.args.categoryId ? String(this.args.categoryId) : "";
-  }
-
   // Un solo tag selezionabile per volta, come la categoria.
   get selectedTagName() {
-    return (this.args.selectedTags && this.args.selectedTags[0]) || "";
+    return (this.args.selectedTags && this.args.selectedTags[0]) || null;
   }
 
   get hasActiveFilters() {
     return Boolean(this.args.categoryId) || Boolean(this.selectedTagName);
   }
 
-  handleCategoryChange = (event) => {
-    const value = event.target.value;
-    this.args.onChangeCategory(value ? parseInt(value, 10) : null);
+  handleCategoryChange = (value) => {
+    this.args.onChangeCategory(value ?? null);
   };
 
-  handleTagChange = (event) => {
-    const value = event.target.value;
+  handleTagChange = (value) => {
     this.args.onChangeTags(value ? [value] : []);
   };
 
@@ -250,27 +246,22 @@ export default class MapPage extends Component {
 
       {{! Filtri: categoria e tag, solo quelli presenti tra i topic elencati. }}
       <div class="discourse-maps-filters">
-        <select
+        <ComboBox
+          @value={{@categoryId}}
+          @content={{this.availableCategories}}
+          @onChange={{this.handleCategoryChange}}
+          @options={{hash none="discourse_maps.filters.all_categories"}}
           class="discourse-maps-filters__category"
-          value={{this.categoryIdString}}
-          {{on "change" this.handleCategoryChange}}
-        >
-          <option value="">{{i18n "discourse_maps.filters.all_categories"}}</option>
-          {{#each this.availableCategories as |cat|}}
-            <option value={{cat.id}}>{{cat.name}}</option>
-          {{/each}}
-        </select>
+        />
 
-        <select
+        <ComboBox
+          @value={{this.selectedTagName}}
+          @content={{this.availableTags}}
+          @onChange={{this.handleTagChange}}
+          @valueProperty="name"
+          @options={{hash none="discourse_maps.filters.all_tags"}}
           class="discourse-maps-filters__tags"
-          value={{this.selectedTagName}}
-          {{on "change" this.handleTagChange}}
-        >
-          <option value="">{{i18n "discourse_maps.filters.all_tags"}}</option>
-          {{#each this.availableTags as |tag|}}
-            <option value={{tag.name}}>{{tag.name}}</option>
-          {{/each}}
-        </select>
+        />
 
         <button
           type="button"
