@@ -26,6 +26,28 @@ const DEFAULT_CENTER = { lat: 41.9, lng: 12.5 };
 const DEFAULT_ZOOM = 5;
 const SINGLE_MARKER_ZOOM = 14;
 
+// Colore di fallback per i marker senza categoria (o categoria senza colore).
+const DEFAULT_MARKER_COLOR = "#0088CC";
+const MARKER_WIDTH = 25;
+const MARKER_HEIGHT = 41;
+
+// ---------------------------------------------------------------------------
+//  Marker "a pin" colorato (SVG), usato sia da Leaflet (come divIcon) sia da
+//  Google Maps (come icona data-URI): il fill riprende il colore nativo
+//  della categoria del topic, con fallback a DEFAULT_MARKER_COLOR.
+// ---------------------------------------------------------------------------
+function markerSvg(color) {
+  const fill = color || DEFAULT_MARKER_COLOR;
+  return (
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${MARKER_WIDTH}" height="${MARKER_HEIGHT}" ` +
+    `viewBox="0 0 25 41">` +
+    `<path fill="${fill}" stroke="#ffffff" stroke-width="1.5" ` +
+    `d="M12.5 0C5.6 0 0 5.6 0 12.5 0 20 12.5 41 12.5 41S25 20 25 12.5C25 5.6 19.4 0 12.5 0Z"/>` +
+    `<circle cx="12.5" cy="12.5" r="4.5" fill="#ffffff"/>` +
+    `</svg>`
+  );
+}
+
 // ---------------------------------------------------------------------------
 //  Utility: carica un foglio di stile esterno una sola volta.
 // ---------------------------------------------------------------------------
@@ -181,7 +203,15 @@ async function createLeafletMap(element, { markers, interactive, apiKey }) {
   const latLngs = [];
 
   points.forEach((m) => {
-    const marker = L.marker([m.lat, m.lng]).addTo(map);
+    const icon = L.divIcon({
+      className: "discourse-maps-marker",
+      html: markerSvg(m.color),
+      iconSize: [MARKER_WIDTH, MARKER_HEIGHT],
+      iconAnchor: [MARKER_WIDTH / 2, MARKER_HEIGHT],
+      popupAnchor: [0, -MARKER_HEIGHT + 6],
+    });
+
+    const marker = L.marker([m.lat, m.lng], { icon }).addTo(map);
     if (m.popupHtml || m.display_name) {
       marker.bindPopup(m.popupHtml || m.display_name);
     }
@@ -220,7 +250,12 @@ async function createGoogleMap(element, { markers, interactive, apiKey }) {
 
   points.forEach((m) => {
     const position = { lat: m.lat, lng: m.lng };
-    const marker = new google.maps.Marker({ position, map });
+    const icon = {
+      url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(markerSvg(m.color))}`,
+      scaledSize: new google.maps.Size(MARKER_WIDTH, MARKER_HEIGHT),
+      anchor: new google.maps.Point(MARKER_WIDTH / 2, MARKER_HEIGHT),
+    };
+    const marker = new google.maps.Marker({ position, map, icon });
 
     if (m.popupHtml || m.display_name) {
       const info = new google.maps.InfoWindow({

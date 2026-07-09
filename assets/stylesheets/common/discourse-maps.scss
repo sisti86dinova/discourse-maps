@@ -20,6 +20,13 @@
     display: none !important;
   }
 
+  // Il pin è un SVG colorato (categoria del topic): rimuove lo sfondo e il
+  // bordo che Leaflet applica di default ai divIcon.
+  .discourse-maps-marker {
+    background: transparent;
+    border: none;
+  }
+
   // --- Responsive -----------------------------------------------------------
   // Su tablet riduciamo leggermente l'altezza.
   @media screen and (max-width: 1024px) {

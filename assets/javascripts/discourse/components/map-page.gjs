@@ -37,6 +37,10 @@ import DiscourseMapsMap from "./discourse-maps-map";
 // Quanti topic mostrare per volta nella lista (caricamento a scroll).
 const PAGE_SIZE = 10;
 
+// Colore di fallback per il pin sulla mappa quando il topic non ha una
+// categoria (o la categoria non ha un colore).
+const DEFAULT_MARKER_COLOR = "#0088CC";
+
 // Soglie per il formato relativo (secondi -> unità), stesso approccio della
 // ricetta MDN per Intl.RelativeTimeFormat: nessuna dipendenza esterna, quindi
 // nessun rischio di ereditare un "Invalid date" da altre utility.
@@ -144,6 +148,7 @@ export default class MapPage extends Component {
         lat: topic.location.lat,
         lng: topic.location.lng,
         popupHtml: parts.join("<br>"),
+        color: category?.color ? `#${category.color}` : DEFAULT_MARKER_COLOR,
       };
     });
   }
