@@ -247,23 +247,6 @@ export default class MapPage extends Component {
               </div>
             {{/if}}
 
-            <div class="discourse-maps-list__stats">
-              <span class="discourse-maps-list__stat">
-                {{icon "eye"}}<span class="number">{{row.topic.views}}</span>
-              </span>
-              <span class="discourse-maps-list__stat">
-                {{icon "heart"}}<span class="number">{{row.topic.like_count}}</span>
-              </span>
-              <span class="discourse-maps-list__stat">
-                {{icon "comment"}}<span class="number">{{row.commentsCount}}</span>
-              </span>
-              {{#if row.activityDate}}
-                <a href={{row.topic.url}} class="discourse-maps-list__stat post-activity">
-                  <span class="relative-date">{{row.activityDate}}</span>
-                </a>
-              {{/if}}
-            </div>
-
             <div class="discourse-maps-list__content">
               <a href={{row.topic.url}} class="discourse-maps-list__title">
                 {{row.topic.title}}
@@ -290,6 +273,23 @@ export default class MapPage extends Component {
                   </ul>
                 {{/if}}
               </div>
+            </div>
+
+            <div class="discourse-maps-list__stats">
+              <span class="discourse-maps-list__stat">
+                {{icon "eye"}}<span class="number">{{row.topic.views}}</span>
+              </span>
+              <span class="discourse-maps-list__stat">
+                {{icon "heart"}}<span class="number">{{row.topic.like_count}}</span>
+              </span>
+              <span class="discourse-maps-list__stat">
+                {{icon "comment"}}<span class="number">{{row.commentsCount}}</span>
+              </span>
+              {{#if row.activityDate}}
+                <a href={{row.topic.url}} class="discourse-maps-list__stat post-activity">
+                  <span class="relative-date">{{row.activityDate}}</span>
+                </a>
+              {{/if}}
             </div>
           </div>
         {{else}}
