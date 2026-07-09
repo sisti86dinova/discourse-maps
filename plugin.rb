@@ -26,12 +26,14 @@ register_asset "stylesheets/common/discourse-maps.scss"
 # Permette al composer di inviare il parametro "discourse_maps_location" alla
 # creazione del topic. Lo dichiariamo come :hash perché è un oggetto con più
 # campi (indirizzo + coordinate lat/lng).
-add_permitted_post_create_param("discourse_maps_location", :hash)
 
 # ----------------------------------------------------------------------------
 #  Blocco di inizializzazione lato server.
 # ----------------------------------------------------------------------------
 after_initialize do
+
+  add_permitted_post_create_param("discourse_maps_location", :hash)
+
   # Namespace del modulo del plugin.
   module ::DiscourseMaps
     PLUGIN_NAME = "discourse-maps"
