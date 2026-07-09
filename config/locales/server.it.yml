@@ -1,0 +1,8 @@
+it:
+  site_settings:
+    discourse_maps_enabled: "Abilita il plugin Discourse Maps."
+    discourse_maps_map_tag_id: "ID del tag assegnato automaticamente ai topic che usano la mappa (default: 295)."
+    discourse_maps_provider: "Provider di mappa/geocoding da utilizzare."
+    discourse_maps_locationiq_api_key: "Chiave API di LocationIQ (usata quando il provider è 'locationiq')."
+    discourse_maps_google_api_key: "Chiave API di Google Maps (usata quando il provider è 'google')."
+

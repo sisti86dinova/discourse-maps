@@ -1,0 +1,8 @@
+en:
+  js:
+    discourse_maps:
+      # Placeholder di traduzioni lato client.
+      # Verranno popolate negli step successivi (composer, pagina /map, filtri).
+      title: "Map"
+      page_title: "Map"
+

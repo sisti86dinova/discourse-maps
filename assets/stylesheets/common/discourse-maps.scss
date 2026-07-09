@@ -1,0 +1,28 @@
+// ============================================================================
+//  Discourse Maps - Stili comuni.
+//
+//  Foglio di stile di base. Contiene già alcune media query di esempio per
+//  garantire che il contenitore della mappa sia responsive (requisito da
+//  specifica). Gli stili specifici (pagina /map, popup, filtri) verranno
+//  aggiunti negli step successivi.
+// ============================================================================
+
+// Contenitore generico della mappa (usato sia nei topic sia nella pagina /map).
+.discourse-map {
+  width: 100%;
+  height: 400px;
+  border-radius: 8px;
+  overflow: hidden;
+
+  // --- Responsive -----------------------------------------------------------
+  // Su tablet riduciamo leggermente l'altezza.
+  @media screen and (max-width: 1024px) {
+    height: 340px;
+  }
+
+  // Su smartphone la mappa diventa più compatta.
+  @media screen and (max-width: 767px) {
+    height: 260px;
+  }
+}
+

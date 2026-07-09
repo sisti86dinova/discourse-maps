@@ -1,0 +1,8 @@
+it:
+  js:
+    discourse_maps:
+      # Segnaposto di traduzioni lato client.
+      # Verranno popolate negli step successivi (composer, pagina /map, filtri).
+      title: "Mappa"
+      page_title: "Mappa"
+

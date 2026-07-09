@@ -1,0 +1,16 @@
+# Dipendenze
+node_modules/
+
+# Log e file temporanei
+*.log
+.DS_Store
+Thumbs.db
+
+# Editor / IDE
+.idea/
+.vscode/
+
+# Build
+dist/
+tmp/
+

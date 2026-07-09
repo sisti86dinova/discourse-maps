@@ -1,0 +1,45 @@
+plugins:
+  # --------------------------------------------------------------------------
+  #  Impostazioni generali del plugin Discourse Maps.
+  #  Sono configurabili da: Admin > Impostazioni > Plugin.
+  # --------------------------------------------------------------------------
+
+  # Abilita o disabilita l'intero plugin.
+  discourse_maps_enabled:
+    default: true
+    client: true
+
+  # ID del tag "mappa" associato automaticamente ai topic che usano il plugin.
+  # Da specifica il valore di default è 295.
+  discourse_maps_map_tag_id:
+    default: 295
+    client: true
+
+  # --------------------------------------------------------------------------
+  #  Provider della mappa e del geocoding.
+  #  Il plugin supporta due provider intercambiabili:
+  #   - "locationiq" : tiles OpenStreetMap + geocoding via LocationIQ
+  #   - "google"     : Google Maps JavaScript API + Google Geocoding
+  # --------------------------------------------------------------------------
+  discourse_maps_provider:
+    type: enum
+    default: "locationiq"
+    client: true
+    choices:
+      - "locationiq"
+      - "google"
+
+  # Chiave API di LocationIQ (usata quando il provider è "locationiq").
+  # Serve sia lato client (tiles) sia lato server (geocoding), perciò
+  # è esposta al client. LocationIQ consente di limitare la chiave per dominio.
+  discourse_maps_locationiq_api_key:
+    default: ""
+    client: true
+
+  # Chiave API di Google Maps (usata quando il provider è "google").
+  # Necessaria lato client per caricare la Maps JavaScript API.
+  # Google consente di limitare la chiave per referrer/dominio.
+  discourse_maps_google_api_key:
+    default: ""
+    client: true
+
