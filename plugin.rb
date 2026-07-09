@@ -23,6 +23,10 @@ enabled_site_setting :discourse_maps_enabled
 # Registra il foglio di stile comune (mappe, layout della pagina /map, ecc.).
 register_asset "stylesheets/common/discourse-maps.scss"
 
+# Garantisce che l'icona del link "Mappa" in sidebar sia sempre disponibile,
+# indipendentemente dal set di icone di default configurato nel sito.
+register_svg_icon "globe"
+
 # Permette al composer di inviare il parametro "discourse_maps_location" alla
 # creazione del topic. Lo dichiariamo come :hash perché è un oggetto con più
 # campi (indirizzo + coordinate lat/lng).

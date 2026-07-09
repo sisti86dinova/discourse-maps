@@ -31,7 +31,7 @@ export default {
         route: "map",
         title: i18n("discourse_maps.page_title"),
         text: i18n("discourse_maps.page_title"),
-        icon: "map",
+        icon: "globe",
       });
 
       // --- Serializzazione dei dati geografici -----------------------------
