@@ -100,6 +100,7 @@ after_initialize do
           category_id: topic.category_id,
           tags: topic.tags.map(&:name),
           location: topic.custom_fields[LOCATION_FIELD],
+          image_url: topic.image_url,
         }
       end
     end

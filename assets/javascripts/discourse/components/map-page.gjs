@@ -26,13 +26,12 @@ import DiscourseMapsMap from "./discourse-maps-map";
 export default class MapPage extends Component {
   @service site;
 
-  // Restituisce il nome della categoria dato il suo id (o null).
-  categoryName(categoryId) {
+  // Restituisce la categoria (con url e nome) dato il suo id (o null).
+  category(categoryId) {
     if (!categoryId) {
       return null;
     }
-    const category = this.site.categories?.find((c) => c.id === categoryId);
-    return category ? category.name : null;
+    return this.site.categories?.find((c) => c.id === categoryId) || null;
   }
 
   // Solo i topic che hanno una posizione valida.
@@ -49,9 +48,9 @@ export default class MapPage extends Component {
         `<strong><a href="${topic.url}">${topic.fancy_title || topic.title}</a></strong>`,
       ];
 
-      const category = this.categoryName(topic.category_id);
+      const category = this.category(topic.category_id);
       if (category) {
-        parts.push(category);
+        parts.push(category.name);
       }
 
       if (topic.tags?.length) {
@@ -66,12 +65,15 @@ export default class MapPage extends Component {
     });
   }
 
-  // Righe per la lista sotto la mappa, con nome categoria già risolto.
+  // Righe per la lista sotto la mappa: categoria e tag risolti come link.
   get rows() {
     return this.locatedTopics.map((topic) => ({
       topic,
-      category: this.categoryName(topic.category_id),
-      tags: topic.tags || [],
+      category: this.category(topic.category_id),
+      tags: (topic.tags || []).map((tag) => ({
+        name: tag,
+        url: `/tag/${tag}`,
+      })),
     }));
   }
 
@@ -104,18 +106,26 @@ export default class MapPage extends Component {
       <div class="discourse-maps-list">
         {{#each this.rows as |row|}}
           <div class="discourse-maps-list__item">
-            <a href={{row.topic.url}} class="discourse-maps-list__title">
-              {{row.topic.title}}
-            </a>
+            {{#if row.topic.image_url}}
+              <a href={{row.topic.url}} class="discourse-maps-list__image-link">
+                <img src={{row.topic.image_url}} alt="" class="discourse-maps-list__image" />
+              </a>
+            {{/if}}
 
-            <div class="discourse-maps-list__meta">
-              {{#if row.category}}
-                <span class="discourse-maps-list__category">{{row.category}}</span>
-              {{/if}}
+            <div class="discourse-maps-list__content">
+              <a href={{row.topic.url}} class="discourse-maps-list__title">
+                {{row.topic.title}}
+              </a>
 
-              {{#each row.tags as |tag|}}
-                <span class="discourse-maps-list__tag">{{tag}}</span>
-              {{/each}}
+              <div class="discourse-maps-list__meta">
+                {{#if row.category}}
+                  <a href={{row.category.url}} class="discourse-maps-list__category">{{row.category.name}}</a>
+                {{/if}}
+
+                {{#each row.tags as |tag|}}
+                  <a href={{tag.url}} class="discourse-maps-list__tag">{{tag.name}}</a>
+                {{/each}}
+              </div>
             </div>
           </div>
         {{else}}
