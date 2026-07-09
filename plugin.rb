@@ -4,7 +4,6 @@
 #  Discourse Maps
 #  Plugin che permette di inserire informazioni geografiche nei topic e di
 #  visualizzarle su una mappa interattiva (LocationIQ oppure Google Maps).
-#
 #  NOTA: questo file è il punto di ingresso del plugin. In questo primo step
 #  contiene solo la struttura di base (metadati, abilitazione, impostazioni).
 #  Le funzionalità (composer, pagina /map, filtri) verranno aggiunte nei
