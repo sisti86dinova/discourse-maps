@@ -156,18 +156,18 @@
   &__stats {
     display: flex;
     align-items: center;
-    gap: 0.75em 0;
+    gap: 1em;
     padding: 0;
     color: var(--primary-medium);
-    font-size: var(--font-down-1);
+    font-size: 14px;
   }
 
   &__stat {
     display: inline-flex;
     flex-direction: row;
     align-items: center;
-    gap: 1em;
-    font-size: var(--font-down-1);
+    gap: 0.3em;
+    font-size: 14px;
     font-weight: 700;
     color: var(--primary-low-mid);
     
