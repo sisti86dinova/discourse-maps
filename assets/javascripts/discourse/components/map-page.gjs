@@ -329,7 +329,7 @@ export default class MapPage extends Component {
                 {{icon "comment"}}<span class="number">{{row.commentsCount}}</span>
               </span>
               {{#if row.activityDate}}
-                <span class="relative-date">{{row.activityDate}}</span>
+                <span class="discourse-maps-list__relative-date">{{row.activityDate}}</span>
               {{/if}}
             </div>
           </div>
