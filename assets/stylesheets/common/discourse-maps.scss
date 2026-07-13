@@ -257,14 +257,14 @@
       column-gap: 6px;
       li {
         position: relative;
-        &:before {
+        &:after {
           display: inline;
           content: ',';
           position: relative;
         }
         
-        &:first-child {
-          &:before {
+        &:last-child {
+          &:after {
             display: none;
           }
         }
