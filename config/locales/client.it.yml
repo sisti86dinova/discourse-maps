@@ -18,15 +18,11 @@ it:
         remove: "Rimuovi posizione"
         cancel: "Annulla"
         fields:
-          street: "Via"
-          house_number: "Civico"
-          postcode: "CAP"
-          city: "Città"
-          country: "Nazione"
-          country_none: "Seleziona una nazione"
+          address: "Indirizzo"
+          address_placeholder: "es. Via Roma 1, 00100 Roma"
         errors:
           generic: "Impossibile trovare l'indirizzo. Controlla i dati inseriti."
           not_found: "Nessun risultato trovato per questo indirizzo."
-          empty_address: "Inserisci almeno un campo dell'indirizzo."
+          empty_address: "Inserisci un indirizzo."
 
 

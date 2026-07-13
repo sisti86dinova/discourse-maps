@@ -1,35 +1,30 @@
 // ============================================================================
 //  Discourse Maps - Modal di inserimento posizione (composer).
 //
-//  Viene aperto dal pulsante nella toolbar del composer. Raccoglie i campi
-//  dell'indirizzo, esegue il geocoding con il provider configurato e salva il
-//  risultato (indirizzo + coordinate) sul modello del composer, così da poterlo
-//  inviare al server alla creazione del topic.
+//  Viene aperto dal pulsante nella toolbar del composer. L'utente digita
+//  l'indirizzo completo in un solo campo di testo libero: è il provider di
+//  geocoding (LocationIQ o Google) a interpretarlo, restituendo coordinate,
+//  indirizzo formattato e paese. Salviamo il risultato sul modello del
+//  composer, così da poterlo inviare al server alla creazione del topic.
 // ============================================================================
 
 import Component from "@glimmer/component";
 import { tracked } from "@glimmer/tracking";
 import { action } from "@ember/object";
-import { fn, hash } from "@ember/helper";
 import { on } from "@ember/modifier";
 import { service } from "@ember/service";
 import DButton from "discourse/components/d-button";
 import DModal from "discourse/components/d-modal";
-import ComboBox from "discourse/select-kit/components/combo-box";
 import { i18n } from "discourse-i18n";
-import { COUNTRIES } from "../lib/countries";
 import { geocodeAddress } from "../lib/discourse-maps-provider";
 
 export default class DiscourseMapsLocationModal extends Component {
   @service composer;
   @service siteSettings;
 
-  // Campi dell'indirizzo (pre-compilati se il topic ha già una posizione).
-  @tracked street = "";
-  @tracked house_number = "";
-  @tracked postcode = "";
-  @tracked city = "";
-  @tracked country = "";
+  // Indirizzo completo digitato dall'utente (pre-compilato se il topic ha
+  // già una posizione).
+  @tracked address = "";
 
   // Stato dell'operazione di geocoding.
   @tracked loading = false;
@@ -41,11 +36,7 @@ export default class DiscourseMapsLocationModal extends Component {
     // Recupera un'eventuale posizione già salvata sul composer per l'editing.
     const existing = this.composer?.model?.discourse_maps_location;
     if (existing) {
-      this.street = existing.street ?? "";
-      this.house_number = existing.house_number ?? "";
-      this.postcode = existing.postcode ?? "";
-      this.city = existing.city ?? "";
-      this.country = existing.country ?? "";
+      this.address = existing.address ?? existing.display_name ?? "";
     }
   }
 
@@ -54,22 +45,9 @@ export default class DiscourseMapsLocationModal extends Component {
     return this.errorKey ? i18n(`discourse_maps.modal.errors.${this.errorKey}`) : null;
   }
 
-  // Aggiorna in modo generico un campo dell'indirizzo.
   @action
-  updateField(field, event) {
-    this[field] = event.target.value;
-  }
-
-  // Elenco fisso di paesi selezionabili (evita grafie diverse per lo stesso
-  // paese, es. "Italia" / "italia", che altrimenti risulterebbero voci
-  // distinte nel filtro paese della pagina /map).
-  countries = COUNTRIES;
-
-  // Aggiorna il campo paese: il ComboBox restituisce direttamente il valore
-  // scelto (non un evento DOM), quindi serve un'azione dedicata.
-  @action
-  updateCountry(value) {
-    this.country = value ?? "";
+  updateAddress(event) {
+    this.address = event.target.value;
   }
 
   // Esegue il geocoding e salva la posizione sul modello del composer.
@@ -78,23 +56,17 @@ export default class DiscourseMapsLocationModal extends Component {
     this.errorKey = null;
     this.loading = true;
 
-    const address = {
-      street: this.street,
-      house_number: this.house_number,
-      postcode: this.postcode,
-      city: this.city,
-      country: this.country,
-    };
-
     try {
-      const result = await geocodeAddress(address, this.siteSettings);
+      const result = await geocodeAddress(this.address, this.siteSettings);
 
-      // Salviamo indirizzo + coordinate sul modello del composer.
+      // Salviamo l'indirizzo digitato + il risultato del geocoding
+      // (coordinate, indirizzo formattato, paese) sul modello del composer.
       this.composer.model.set("discourse_maps_location", {
-        ...address,
+        address: this.address,
         lat: result.lat,
         lng: result.lng,
         display_name: result.display_name,
+        country: result.country,
       });
 
       this.args.closeModal();
@@ -125,48 +97,12 @@ export default class DiscourseMapsLocationModal extends Component {
       <:body>
         <form class="discourse-maps-form">
           <div class="control-group">
-            <label>{{i18n "discourse_maps.modal.fields.street"}}</label>
+            <label>{{i18n "discourse_maps.modal.fields.address"}}</label>
             <input
               type="text"
-              value={{this.street}}
-              {{on "input" (fn this.updateField "street")}}
-            />
-          </div>
-
-          <div class="control-group">
-            <label>{{i18n "discourse_maps.modal.fields.house_number"}}</label>
-            <input
-              type="text"
-              value={{this.house_number}}
-              {{on "input" (fn this.updateField "house_number")}}
-            />
-          </div>
-
-          <div class="control-group">
-            <label>{{i18n "discourse_maps.modal.fields.postcode"}}</label>
-            <input
-              type="text"
-              value={{this.postcode}}
-              {{on "input" (fn this.updateField "postcode")}}
-            />
-          </div>
-
-          <div class="control-group">
-            <label>{{i18n "discourse_maps.modal.fields.city"}}</label>
-            <input
-              type="text"
-              value={{this.city}}
-              {{on "input" (fn this.updateField "city")}}
-            />
-          </div>
-
-          <div class="control-group">
-            <label>{{i18n "discourse_maps.modal.fields.country"}}</label>
-            <ComboBox
-              @value={{this.country}}
-              @content={{this.countries}}
-              @onChange={{this.updateCountry}}
-              @options={{hash none="discourse_maps.modal.fields.country_none"}}
+              placeholder={{i18n "discourse_maps.modal.fields.address_placeholder"}}
+              value={{this.address}}
+              {{on "input" this.updateAddress}}
             />
           </div>
 
@@ -197,4 +133,3 @@ export default class DiscourseMapsLocationModal extends Component {
     </DModal>
   </template>
 }
-

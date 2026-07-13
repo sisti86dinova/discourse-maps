@@ -145,29 +145,23 @@ async function ensureGoogle(apiKey) {
   return window.google;
 }
 
-// ---------------------------------------------------------------------------
-//  Costruisce la stringa di ricerca a partire dai campi dell'indirizzo.
-// ---------------------------------------------------------------------------
-function buildQuery(address) {
-  return [
-    [address.street, address.house_number].filter(Boolean).join(" "),
-    address.postcode,
-    address.city,
-    address.country,
-  ]
-    .filter(Boolean)
-    .join(", ");
-}
-
 // ===========================================================================
 //  GEOCODING
+// ===========================================================================
+//  L'utente inserisce l'indirizzo completo in un solo campo di testo libero:
+//  è il provider (LocationIQ/Nominatim o Google) a interpretarlo e a
+//  restituire, oltre alle coordinate, i componenti strutturati da cui
+//  estraiamo il paese (usato dal filtro nazione della pagina /map). Così il
+//  paese salvato è sempre quello "canonico" del provider, non una stringa
+//  digitata a mano (che altrimenti porterebbe a grafie diverse per lo stesso
+//  paese, es. "Italia" / "italia").
 // ===========================================================================
 
 // Geocoding tramite l'endpoint REST di LocationIQ (supporta CORS).
 async function geocodeLocationIQ(query, apiKey) {
   const url =
     `https://us1.locationiq.com/v1/search?key=${encodeURIComponent(apiKey)}` +
-    `&q=${encodeURIComponent(query)}&format=json&limit=1`;
+    `&q=${encodeURIComponent(query)}&format=json&addressdetails=1&limit=1`;
 
   const response = await fetch(url);
   if (!response.ok) {
@@ -183,6 +177,7 @@ async function geocodeLocationIQ(query, apiKey) {
     lat: parseFloat(data[0].lat),
     lng: parseFloat(data[0].lon),
     display_name: data[0].display_name,
+    country: data[0].address?.country || null,
   };
 }
 
@@ -195,10 +190,14 @@ async function geocodeGoogle(query, apiKey) {
     geocoder.geocode({ address: query }, (results, status) => {
       if (status === "OK" && results && results[0]) {
         const location = results[0].geometry.location;
+        const countryComponent = results[0].address_components?.find((c) =>
+          c.types.includes("country")
+        );
         resolve({
           lat: location.lat(),
           lng: location.lng(),
           display_name: results[0].formatted_address,
+          country: countryComponent?.long_name || null,
         });
       } else {
         reject(new Error(status || "not_found"));
@@ -208,14 +207,14 @@ async function geocodeGoogle(query, apiKey) {
 }
 
 /**
- * Converte un indirizzo in coordinate usando il provider configurato.
- * @param {Object} address - { street, house_number, postcode, city, country }
+ * Converte un indirizzo (testo libero) in coordinate usando il provider
+ * configurato.
+ * @param {string} query - indirizzo completo inserito dall'utente
  * @param {Object} siteSettings - servizio site-settings di Discourse
- * @returns {Promise<{lat:number, lng:number, display_name:string}>}
+ * @returns {Promise<{lat:number, lng:number, display_name:string, country:?string}>}
  */
-export async function geocodeAddress(address, siteSettings) {
-  const query = buildQuery(address);
-  if (!query) {
+export async function geocodeAddress(query, siteSettings) {
+  if (!query || !query.trim()) {
     throw new Error("empty_address");
   }
 

@@ -18,15 +18,11 @@ en:
         remove: "Remove location"
         cancel: "Cancel"
         fields:
-          street: "Street"
-          house_number: "House number"
-          postcode: "Postcode"
-          city: "City"
-          country: "Country"
-          country_none: "Select a country"
+          address: "Address"
+          address_placeholder: "e.g. Via Roma 1, 00100 Rome, Italy"
         errors:
           generic: "Unable to find the address. Please check the entered data."
           not_found: "No results found for this address."
-          empty_address: "Enter at least one field of the address."
+          empty_address: "Enter an address."
 
 

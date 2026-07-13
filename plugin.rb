@@ -43,8 +43,10 @@ after_initialize do
     PLUGIN_NAME = "discourse-maps"
 
     # Nome del campo custom del topic in cui salviamo i dati geografici.
-    # Contiene: { street, house_number, postcode, city, country,
-    #             lat, lng, display_name }.
+    # Contiene: { address, lat, lng, display_name, country }. "address" è
+    # l'indirizzo digitato dall'utente, gli altri campi sono il risultato del
+    # geocoding (il paese arriva già "interpretato" dal provider, non digitato
+    # a mano, per evitare grafie diverse per lo stesso paese).
     LOCATION_FIELD = "discourse_maps_location"
 
     # Restituisce il tag "mappa" configurato nel pannello admin
