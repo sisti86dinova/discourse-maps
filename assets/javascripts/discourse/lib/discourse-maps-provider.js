@@ -26,7 +26,7 @@ const DEFAULT_CENTER = { lat: 41.9, lng: 12.5 };
 const DEFAULT_ZOOM = 5;
 // Esportato: la mappa statica del topic usa lo stesso zoom per coerenza
 // visiva con la mappa interattiva a marker singolo.
-export const SINGLE_MARKER_ZOOM = 16;
+export const SINGLE_MARKER_ZOOM = 15;
 
 // Colore di fallback per i marker senza categoria (o categoria senza colore).
 // Esportate perché anche il pin sovrapposto alla mappa statica (nella pagina

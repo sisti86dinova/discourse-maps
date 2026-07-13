@@ -253,6 +253,28 @@
 
     .discourse-tags {
       margin: 0;
+      row-gap: 4px;
+      column-gap: 6px;
+      li {
+        position: relative;
+        &:before {
+          display: inline;
+          content: ',';
+          position: relative;
+        }
+        
+        &:first-child {
+          &:before {
+            display: none;
+          }
+        }
+        
+        * {
+          color: var(--tag-text-color);
+          font-size: var(--d-tag-font-size);
+          font-weight: var(--d-tag-font-weight);
+        }
+      }
     }
   }
 
