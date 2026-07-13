@@ -6,9 +6,9 @@ it:
       list:
         empty: "Nessun topic geolocalizzato al momento."
       filters:
-        all_categories: "Tutte le categorie"
-        all_tags: "Tutti i tag"
-        all_countries: "Tutte le nazioni"
+        all_categories: "Categorie"
+        all_tags: "Tags"
+        all_countries: "Nazioni"
         reset: "Rimuovi filtri"
         new_topic: "Nuovo argomento"
       composer:

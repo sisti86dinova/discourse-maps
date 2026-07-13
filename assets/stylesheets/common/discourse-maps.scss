@@ -73,22 +73,9 @@
     margin-bottom: 1em;
 
     .discourse-maps-filters__reset {
-      display: inline-flex;
-      flex: 0 0 auto;
-      height: 2.5em;
-      padding: 0 1em;
-      border-radius: 4px;
-      background-color: var(--d-button-danger-bg-color);
-      color: var(--d-button-danger-text-color);
-      cursor: pointer;
-
-      &:hover {
-        background: var(--primary-low);
-      }
-
       &.disabled,
       &:disabled {
-        display: none;
+        display: none !important;
       }
     }
 

@@ -360,7 +360,7 @@ export default class MapPage extends Component {
 
         <button
           type="button"
-          class="discourse-maps-filters__reset
+          class="btn btn-icon-text d-page-action-button btn-small btn-danger discourse-maps-filters__reset
             {{unless this.hasActiveFilters 'disabled'}}"
           disabled={{if this.hasActiveFilters false true}}
           {{on "click" this.resetFilters}}
