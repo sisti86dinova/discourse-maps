@@ -33,6 +33,21 @@ export default class MapRoute extends DiscourseRoute {
     return ajax("/map.json", { data });
   }
 
+  // I filtri sono legati alla querystring, quindi per loro natura
+  // "sticky": senza questo hook, uscendo da /map e rientrandoci con un link
+  // semplice (senza parametri, es. dalla sidebar) il controller manterrebbe
+  // ancora i valori della visita precedente. Ember chiama resetController
+  // quando si esce dalla rotta (isExiting): qui azzeriamo i filtri così la
+  // pagina riparte sempre pulita, a meno che l'URL di destinazione non porti
+  // esplicitamente dei parametri (link condiviso, bookmark, ecc.).
+  resetController(controller, isExiting) {
+    if (isExiting) {
+      controller.set("category_id", null);
+      controller.set("tags", null);
+      controller.set("countries", null);
+    }
+  }
+
   // Titolo della pagina (tab del browser / breadcrumb).
   titleToken() {
     return i18n("discourse_maps.page_title");
