@@ -419,6 +419,10 @@ async function createGoogleMap(element, { markers, interactive, apiKey }) {
 
   const projectionPromise = getGoogleProjection(google, map);
 
+  // Un solo InfoWindow alla volta: prima di aprire quello di un pin chiudiamo
+  // l'eventuale popup lasciato aperto da un click precedente.
+  let activeInfoWindow = null;
+
   function addGoogleMarker(m) {
     const position = { lat: m.lat, lng: m.lng };
     const icon = {
@@ -432,7 +436,11 @@ async function createGoogleMap(element, { markers, interactive, apiKey }) {
       const info = new google.maps.InfoWindow({
         content: m.popupHtml || m.display_name,
       });
-      marker.addListener("click", () => info.open(map, marker));
+      marker.addListener("click", () => {
+        activeInfoWindow?.close();
+        info.open(map, marker);
+        activeInfoWindow = info;
+      });
     }
     return marker;
   }
