@@ -94,7 +94,7 @@ after_initialize do
 
     def self.topic_ids_matching_countries(scope, country_names)
       TopicCustomField
-        .where(topic_id: scope.select(:id), name: LOCATION_FIELD)
+        .where(topic_id: scope.distinct.pluck("topics.id"), name: LOCATION_FIELD)
         .pluck(:topic_id, :value)
         .select { |_, value| country_names.include?(parse_country(value)) }
         .map(&:first)
@@ -105,7 +105,7 @@ after_initialize do
     def self.countries_for_scope(scope)
       names =
         TopicCustomField
-          .where(topic_id: scope.select(:id), name: LOCATION_FIELD)
+          .where(topic_id: scope.distinct.pluck("topics.id"), name: LOCATION_FIELD)
           .pluck(:value)
           .map { |value| parse_country(value) }
           .reject(&:blank?)
@@ -212,7 +212,7 @@ after_initialize do
 
       tag_ids =
         TopicTag
-          .where(topic_id: scope_for_tags.select(:id))
+          .where(topic_id: scope_for_tags.distinct.pluck("topics.id"))
           .where.not(tag_id: tag.id)
           .distinct
           .pluck(:tag_id)
