@@ -8,6 +8,7 @@ en:
       filters:
         all_categories: "All categories"
         all_tags: "All tags"
+        all_countries: "All countries"
         reset: "Clear filters"
       composer:
         button_title: "Add a location to the map"

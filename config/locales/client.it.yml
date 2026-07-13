@@ -8,6 +8,7 @@ it:
       filters:
         all_categories: "Tutte le categorie"
         all_tags: "Tutti i tag"
+        all_countries: "Tutte le nazioni"
         reset: "Rimuovi filtri"
       composer:
         button_title: "Aggiungi una posizione alla mappa"

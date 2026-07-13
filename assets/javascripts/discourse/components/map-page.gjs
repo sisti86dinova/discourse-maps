@@ -13,13 +13,16 @@
 //    @topics          - array di topic ({ id, title, fancy_title, url,
 //                       category_id, tags, location, ... }) dalla rotta /map,
 //                       già ordinati dal server (più recenti prima).
-//    @filters          - { category_ids: [...], tags: [{id, name}, ...] },
-//                        opzioni dei filtri calcolate dal server sulla base
-//                        dei topic effettivamente mostrabili.
+//    @filters          - { category_ids: [...], tags: [{id, name}, ...],
+//                        countries: [{id, name}, ...] }, opzioni dei filtri
+//                        calcolate dal server sulla base dei topic
+//                        effettivamente mostrabili.
 //    @categoryId      - id della categoria attualmente selezionata (filtro).
 //    @selectedTags    - array dei tag attualmente selezionati (filtro).
+//    @countryName     - paese attualmente selezionato (filtro).
 //    @onChangeCategory - callback(categoryId) al cambio del filtro categoria.
 //    @onChangeTags     - callback(tags[]) al cambio del filtro tag.
+//    @onChangeCountry  - callback(countryName) al cambio del filtro paese.
 // ============================================================================
 
 import Component from "@glimmer/component";
@@ -98,8 +101,18 @@ export default class MapPage extends Component {
     return (this.args.selectedTags && this.args.selectedTags[0]) || null;
   }
 
+  // Paesi da proporre nel filtro: solo quelli presenti tra i topic
+  // mostrabili (indicati dal server).
+  get availableCountries() {
+    return this.args.filters?.countries || [];
+  }
+
   get hasActiveFilters() {
-    return Boolean(this.args.categoryId) || Boolean(this.selectedTagName);
+    return (
+      Boolean(this.args.categoryId) ||
+      Boolean(this.selectedTagName) ||
+      Boolean(this.args.countryName)
+    );
   }
 
   handleCategoryChange = (value) => {
@@ -110,9 +123,14 @@ export default class MapPage extends Component {
     this.args.onChangeTags(value ? [value] : []);
   };
 
+  handleCountryChange = (value) => {
+    this.args.onChangeCountry(value ?? null);
+  };
+
   resetFilters = () => {
     this.args.onChangeCategory(null);
     this.args.onChangeTags([]);
+    this.args.onChangeCountry(null);
   };
 
   // Solo i topic che hanno una posizione valida (per mappa e lista). La
@@ -261,6 +279,15 @@ export default class MapPage extends Component {
           @valueProperty="name"
           @options={{hash none="discourse_maps.filters.all_tags"}}
           class="discourse-maps-filters__tags"
+        />
+
+        <ComboBox
+          @value={{@countryName}}
+          @content={{this.availableCountries}}
+          @onChange={{this.handleCountryChange}}
+          @valueProperty="name"
+          @options={{hash none="discourse_maps.filters.all_countries"}}
+          class="discourse-maps-filters__countries"
         />
 
         <button

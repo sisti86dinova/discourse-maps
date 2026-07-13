@@ -14,6 +14,7 @@ export default class MapRoute extends DiscourseRoute {
   queryParams = {
     category_id: { refreshModel: true },
     tags: { refreshModel: true },
+    countries: { refreshModel: true },
   };
 
   model(params) {
@@ -24,6 +25,9 @@ export default class MapRoute extends DiscourseRoute {
     }
     if (params.tags) {
       data.tags = params.tags;
+    }
+    if (params.countries) {
+      data.countries = params.countries;
     }
 
     return ajax("/map.json", { data });

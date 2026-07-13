@@ -74,15 +74,66 @@ after_initialize do
       { scope: scope, tag: tag }
     end
 
+    # Filtra uno scope per tag: il topic deve possedere TUTTI i tag indicati.
+    def self.filter_by_tags(scope, tag_names)
+      Tag
+        .where(name: tag_names)
+        .pluck(:id)
+        .each { |tid| scope = scope.where(id: TopicTag.where(tag_id: tid).select(:topic_id)) }
+      scope
+    end
+
+    # Filtra uno scope per paese. Il paese è salvato solo dentro il custom
+    # field JSON (LOCATION_FIELD), non è una colonna: il confronto va fatto
+    # leggendo e parsando il JSON, non con una where SQL.
+    def self.filter_by_countries(scope, country_names)
+      scope.where(id: topic_ids_matching_countries(scope, country_names))
+    end
+
+    def self.topic_ids_matching_countries(scope, country_names)
+      TopicCustomField
+        .where(topic_id: scope.select(:id), name: LOCATION_FIELD)
+        .pluck(:topic_id, :value)
+        .select { |_, value| country_names.include?(parse_country(value)) }
+        .map(&:first)
+    end
+
+    # Elenco (ordinato, senza duplicati) dei paesi presenti tra i topic dello
+    # scope indicato.
+    def self.countries_for_scope(scope)
+      names =
+        TopicCustomField
+          .where(topic_id: scope.select(:id), name: LOCATION_FIELD)
+          .pluck(:value)
+          .map { |value| parse_country(value) }
+          .reject(&:blank?)
+          .uniq
+          .sort
+
+      names.map { |name| { id: name, name: name } }
+    end
+
+    # Il custom field è salvato come JSON: estrae il paese in modo sicuro
+    # (nil se il valore non è presente o non è un JSON valido).
+    def self.parse_country(raw_value)
+      return nil if raw_value.blank?
+
+      JSON.parse(raw_value)["country"]
+    rescue JSON::ParserError
+      nil
+    end
+
     # Raccoglie i topic da mostrare nella pagina /map, ordinati per data di
     # creazione decrescente. Rispetta i permessi dell'utente (guardian) e
     # restituisce solo i dati necessari a mappa e lista.
     #
     # Filtri opzionali:
-    #   - category_id : mostra solo i topic della categoria indicata;
-    #   - tag_names   : mostra solo i topic che hanno TUTTI i tag indicati
-    #                   (il vincolo del tag "mappa" resta sempre applicato).
-    def self.map_topics(guardian, category_id: nil, tag_names: [])
+    #   - category_id   : mostra solo i topic della categoria indicata;
+    #   - tag_names     : mostra solo i topic che hanno TUTTI i tag indicati
+    #                     (il vincolo del tag "mappa" resta sempre applicato);
+    #   - country_names : mostra solo i topic il cui indirizzo è in uno dei
+    #                     paesi indicati.
+    def self.map_topics(guardian, category_id: nil, tag_names: [], country_names: [])
       base = base_map_scope(guardian)
       return [] unless base
 
@@ -92,14 +143,10 @@ after_initialize do
       scope = scope.where(category_id: category_id) if category_id.present?
 
       # Filtro per tag: il topic deve possedere tutti i tag selezionati.
-      if tag_names.present?
-        Tag
-          .where(name: tag_names)
-          .pluck(:id)
-          .each do |tid|
-            scope = scope.where(id: TopicTag.where(tag_id: tid).select(:topic_id))
-          end
-      end
+      scope = filter_by_tags(scope, tag_names) if tag_names.present?
+
+      # Filtro per paese.
+      scope = filter_by_countries(scope, country_names) if country_names.present?
 
       topics = scope.includes(:tags).distinct.order(created_at: :desc).to_a
 
@@ -139,33 +186,27 @@ after_initialize do
       end
     end
 
-    # Opzioni disponibili per i filtri categoria/tag: incrociate tra loro
-    # (AND), così che scegliere una categoria aggiorni le opzioni di tag
-    # (e viceversa) mostrando solo quelle che non porterebbero a zero
-    # risultati con il filtro già impostato sull'altro campo.
-    def self.map_filter_options(guardian, category_id: nil, tag_names: [])
+    # Opzioni disponibili per i filtri categoria/tag/paese: incrociate tra
+    # loro (AND), così che scegliere un filtro aggiorni le opzioni degli
+    # altri due mostrando solo quelle che non porterebbero a zero risultati
+    # con i filtri già impostati.
+    def self.map_filter_options(guardian, category_id: nil, tag_names: [], country_names: [])
       base = base_map_scope(guardian)
-      return { category_ids: [], tags: [] } unless base
+      return { category_ids: [], tags: [], countries: [] } unless base
 
       scope = base[:scope]
       tag = base[:tag]
 
-      # Categorie disponibili: rispettano il filtro tag già impostato.
+      # Categorie disponibili: rispettano i filtri tag e paese già impostati.
       scope_for_categories = scope
-      if tag_names.present?
-        Tag
-          .where(name: tag_names)
-          .pluck(:id)
-          .each do |tid|
-            scope_for_categories =
-              scope_for_categories.where(id: TopicTag.where(tag_id: tid).select(:topic_id))
-          end
-      end
+      scope_for_categories = filter_by_tags(scope_for_categories, tag_names) if tag_names.present?
+      scope_for_categories = filter_by_countries(scope_for_categories, country_names) if country_names.present?
       category_ids = scope_for_categories.distinct.pluck(:category_id).compact
 
-      # Tag disponibili: rispettano il filtro categoria già impostato.
+      # Tag disponibili: rispettano i filtri categoria e paese già impostati.
       scope_for_tags = scope
       scope_for_tags = scope_for_tags.where(category_id: category_id) if category_id.present?
+      scope_for_tags = filter_by_countries(scope_for_tags, country_names) if country_names.present?
 
       tag_ids =
         TopicTag
@@ -176,7 +217,13 @@ after_initialize do
 
       tags = Tag.where(id: tag_ids).order(:name).pluck(:id, :name).map { |id, name| { id: id, name: name } }
 
-      { category_ids: category_ids, tags: tags }
+      # Paesi disponibili: rispettano i filtri categoria e tag già impostati.
+      scope_for_countries = scope
+      scope_for_countries = scope_for_countries.where(category_id: category_id) if category_id.present?
+      scope_for_countries = filter_by_tags(scope_for_countries, tag_names) if tag_names.present?
+      countries = countries_for_scope(scope_for_countries)
+
+      { category_ids: category_ids, tags: tags, countries: countries }
     end
   end
 
@@ -240,17 +287,22 @@ after_initialize do
         # Dati per la mappa e la lista, filtrati per permessi utente e per gli
         # eventuali filtri di categoria/tag passati come parametri di query.
         format.json do
+          tag_names = Array(params[:tags]&.split(","))
+          country_names = Array(params[:countries]&.split(","))
+
           topics =
             ::DiscourseMaps.map_topics(
               guardian,
               category_id: params[:category_id],
-              tag_names: Array(params[:tags]&.split(",")),
+              tag_names: tag_names,
+              country_names: country_names,
             )
           filters =
             ::DiscourseMaps.map_filter_options(
               guardian,
               category_id: params[:category_id],
-              tag_names: Array(params[:tags]&.split(",")),
+              tag_names: tag_names,
+              country_names: country_names,
             )
 
           render json: { topics: topics, filters: filters }

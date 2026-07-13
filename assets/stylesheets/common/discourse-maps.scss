@@ -76,7 +76,8 @@
     // qui serve solo il dimensionamento nel flex della barra filtri, lo
     // stile del controllo in sé arriva dal CSS di select-kit.
     .discourse-maps-filters__category,
-    .discourse-maps-filters__tags {
+    .discourse-maps-filters__tags,
+    .discourse-maps-filters__countries {
       min-width: 220px;
       flex: 1 1 220px;
     }
@@ -107,7 +108,8 @@
       flex-direction: column;
 
       .discourse-maps-filters__category,
-      .discourse-maps-filters__tags {
+      .discourse-maps-filters__tags,
+      .discourse-maps-filters__countries {
         min-width: 0;
         flex: 1 1 auto;
       }
