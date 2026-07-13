@@ -131,10 +131,15 @@ export default class MapPage extends Component {
     return name && this.availableCountryNames.includes(name) ? name : null;
   }
 
+  // Un filtro è "attivo" in base allo stato passato dalla rotta (URL), non in
+  // base a cosa il ComboBox riesce a mostrare: altrimenti, se il valore
+  // selezionato non è (più) tra le opzioni disponibili, il filtro
+  // risulterebbe attivo (i topic restano filtrati) ma il pulsante di reset
+  // resterebbe disabilitato.
   get hasActiveFilters() {
     return (
       Boolean(this.args.categoryId) ||
-      Boolean(this.selectedTagName) ||
+      Boolean(this.args.selectedTags && this.args.selectedTags.length) ||
       Boolean(this.args.countryName)
     );
   }
