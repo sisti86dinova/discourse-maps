@@ -31,6 +31,16 @@ const DEFAULT_MARKER_COLOR = "#0088CC";
 const MARKER_WIDTH = 25;
 const MARKER_HEIGHT = 41;
 
+// Marker con le stesse coordinate (arrotondate a questa precisione, ~1m)
+// vengono raggruppati in un unico pin "cluster" con il conteggio.
+const CLUSTER_PRECISION = 5;
+const CLUSTER_SIZE = 32;
+// Raggio (in pixel schermo) usato per disporre i pin quando un cluster
+// viene aperto ("spiderfy"): non dipende dallo zoom, così i pin restano
+// leggibili e cliccabili anche se le coordinate originali sono identiche.
+const SPIDERFY_RADIUS = 45;
+const SPIDERFY_RING_CAPACITY = 8;
+
 // ---------------------------------------------------------------------------
 //  Marker "a pin" colorato (SVG), usato sia da Leaflet (come divIcon) sia da
 //  Google Maps (come icona data-URI): il fill riprende il colore nativo
@@ -46,6 +56,61 @@ function markerSvg(color) {
     `<circle cx="12.5" cy="12.5" r="4.5" fill="#ffffff"/>` +
     `</svg>`
   );
+}
+
+// ---------------------------------------------------------------------------
+//  Marker "a cluster" (cerchio numerato), usato quando più punti condividono
+//  le stesse coordinate: mostra quanti topic si trovano in quella posizione.
+// ---------------------------------------------------------------------------
+function clusterSvg(count, color) {
+  const fill = color || DEFAULT_MARKER_COLOR;
+  const r = CLUSTER_SIZE / 2;
+  return (
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${CLUSTER_SIZE}" height="${CLUSTER_SIZE}" ` +
+    `viewBox="0 0 ${CLUSTER_SIZE} ${CLUSTER_SIZE}">` +
+    `<circle cx="${r}" cy="${r}" r="${r - 2}" fill="${fill}" stroke="#ffffff" stroke-width="2"/>` +
+    `<text x="50%" y="52%" text-anchor="middle" dominant-baseline="middle" ` +
+    `fill="#ffffff" font-size="13" font-weight="700" font-family="sans-serif">${count}</text>` +
+    `</svg>`
+  );
+}
+
+// ---------------------------------------------------------------------------
+//  Raggruppa i marker che condividono la stessa posizione (coordinate
+//  arrotondate a CLUSTER_PRECISION decimali, ~1 metro di tolleranza).
+// ---------------------------------------------------------------------------
+function groupMarkersByPosition(points) {
+  const groups = new Map();
+  points.forEach((m) => {
+    const key = `${m.lat.toFixed(CLUSTER_PRECISION)},${m.lng.toFixed(CLUSTER_PRECISION)}`;
+    if (!groups.has(key)) {
+      groups.set(key, []);
+    }
+    groups.get(key).push(m);
+  });
+  return [...groups.values()];
+}
+
+// ---------------------------------------------------------------------------
+//  Calcola gli offset (in pixel) su cui disporre i marker di un cluster
+//  aperto, a raggiera su uno o più anelli concentrici a seconda del numero
+//  di punti da mostrare.
+// ---------------------------------------------------------------------------
+function spiderfyOffsets(count) {
+  const offsets = [];
+  let placed = 0;
+  let ring = 0;
+  while (placed < count) {
+    const ringCount = Math.min(SPIDERFY_RING_CAPACITY + ring * 4, count - placed);
+    const radius = SPIDERFY_RADIUS * (ring + 1);
+    for (let i = 0; i < ringCount; i++) {
+      const angle = (2 * Math.PI * i) / ringCount;
+      offsets.push({ dx: radius * Math.cos(angle), dy: radius * Math.sin(angle) });
+    }
+    placed += ringCount;
+    ring++;
+  }
+  return offsets;
 }
 
 // ---------------------------------------------------------------------------
@@ -200,9 +265,9 @@ async function createLeafletMap(element, { markers, interactive, apiKey }) {
   }).addTo(map);
 
   const points = normalizeMarkers(markers);
-  const latLngs = [];
+  const latLngs = points.map((m) => [m.lat, m.lng]);
 
-  points.forEach((m) => {
+  function addLeafletMarker(m) {
     const icon = L.divIcon({
       className: "discourse-maps-marker",
       html: markerSvg(m.color),
@@ -215,8 +280,96 @@ async function createLeafletMap(element, { markers, interactive, apiKey }) {
     if (m.popupHtml || m.display_name) {
       marker.bindPopup(m.popupHtml || m.display_name);
     }
-    latLngs.push([m.lat, m.lng]);
+    // Evita che il click sul pin si propaghi alla mappa: altrimenti il
+    // listener di chiusura dei cluster (più sotto) richiuderebbe subito lo
+    // "spiderfy" appena apparso.
+    marker.on("click", (e) => L.DomEvent.stopPropagation(e));
+    return marker;
+  }
+
+  // Cluster: un solo pin numerato per ogni posizione con più marker. Al
+  // click si "apre" mostrando i singoli pin disposti a raggiera attorno al
+  // punto, così l'utente può scegliere quello desiderato anche quando le
+  // coordinate originali coincidono esattamente.
+  const openClusters = [];
+
+  function addLeafletCluster(group) {
+    const center = L.latLng(group[0].lat, group[0].lng);
+    const clusterIcon = L.divIcon({
+      className: "discourse-maps-cluster",
+      html: clusterSvg(group.length, group[0].color),
+      iconSize: [CLUSTER_SIZE, CLUSTER_SIZE],
+      iconAnchor: [CLUSTER_SIZE / 2, CLUSTER_SIZE / 2],
+    });
+    const clusterMarker = L.marker(center, {
+      icon: clusterIcon,
+      zIndexOffset: 1000,
+    }).addTo(map);
+
+    let spiderMarkers = [];
+    let spiderLegs = [];
+    let open = false;
+
+    function collapse() {
+      if (!open) {
+        return;
+      }
+      spiderMarkers.forEach((mk) => map.removeLayer(mk));
+      spiderLegs.forEach((leg) => map.removeLayer(leg));
+      spiderMarkers = [];
+      spiderLegs = [];
+      open = false;
+      clusterMarker.setOpacity(1);
+    }
+
+    function expand() {
+      const centerPoint = map.latLngToLayerPoint(center);
+      const offsets = spiderfyOffsets(group.length);
+      group.forEach((m, i) => {
+        const point = centerPoint.add(L.point(offsets[i].dx, offsets[i].dy));
+        const latlng = map.layerPointToLatLng(point);
+        spiderMarkers.push(addLeafletMarker({ ...m, lat: latlng.lat, lng: latlng.lng }));
+        spiderLegs.push(
+          L.polyline([center, latlng], {
+            color: "#999999",
+            weight: 1,
+            dashArray: "3,4",
+            interactive: false,
+          }).addTo(map)
+        );
+      });
+      clusterMarker.setOpacity(0.6);
+      open = true;
+    }
+
+    clusterMarker.on("click", (e) => {
+      L.DomEvent.stopPropagation(e);
+      if (open) {
+        collapse();
+      } else {
+        openClusters.forEach((c) => c !== api && c.collapse());
+        expand();
+      }
+    });
+
+    // Coordinate schermo diverse dopo uno zoom/pan: richiudiamo per evitare
+    // pin posizionati in punti non più coerenti con il cluster.
+    map.on("zoomstart movestart", collapse);
+
+    const api = { collapse };
+    openClusters.push(api);
+  }
+
+  groupMarkersByPosition(points).forEach((group) => {
+    if (group.length > 1) {
+      addLeafletCluster(group);
+    } else {
+      addLeafletMarker(group[0]);
+    }
   });
+
+  // Click su un punto vuoto della mappa: richiude eventuali cluster aperti.
+  map.on("click", () => openClusters.forEach((c) => c.collapse()));
 
   if (latLngs.length === 1) {
     map.setView(latLngs[0], SINGLE_MARKER_ZOOM);
@@ -233,6 +386,21 @@ async function createLeafletMap(element, { markers, interactive, apiKey }) {
   return { instance: map, destroy: () => map.remove() };
 }
 
+// Google Maps non espone direttamente la conversione lat/lng -> pixel
+// schermo: serve un OverlayView "invisibile" per ottenere la projection
+// dopo il primo giro di rendering della mappa.
+function getGoogleProjection(google, map) {
+  return new Promise((resolve) => {
+    const helper = new google.maps.OverlayView();
+    helper.onAdd = () => {};
+    helper.onRemove = () => {};
+    helper.draw = function () {
+      resolve(this.getProjection());
+    };
+    helper.setMap(map);
+  });
+}
+
 // --- Mappa Google Maps -----------------------------------------------------
 async function createGoogleMap(element, { markers, interactive, apiKey }) {
   const google = await ensureGoogle(apiKey);
@@ -247,8 +415,11 @@ async function createGoogleMap(element, { markers, interactive, apiKey }) {
 
   const points = normalizeMarkers(markers);
   const bounds = new google.maps.LatLngBounds();
+  points.forEach((m) => bounds.extend({ lat: m.lat, lng: m.lng }));
 
-  points.forEach((m) => {
+  const projectionPromise = getGoogleProjection(google, map);
+
+  function addGoogleMarker(m) {
     const position = { lat: m.lat, lng: m.lng };
     const icon = {
       url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(markerSvg(m.color))}`,
@@ -263,8 +434,100 @@ async function createGoogleMap(element, { markers, interactive, apiKey }) {
       });
       marker.addListener("click", () => info.open(map, marker));
     }
-    bounds.extend(position);
+    return marker;
+  }
+
+  // Cluster: un solo pin numerato per ogni posizione con più marker. Al
+  // click si "apre" mostrando i singoli pin disposti a raggiera attorno al
+  // punto (i click sui marker di Google non si propagano alla mappa, quindi
+  // non serve stopPropagation come in Leaflet).
+  const openClusters = [];
+
+  function addGoogleCluster(group) {
+    const center = { lat: group[0].lat, lng: group[0].lng };
+    const clusterIcon = {
+      url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(clusterSvg(group.length, group[0].color))}`,
+      scaledSize: new google.maps.Size(CLUSTER_SIZE, CLUSTER_SIZE),
+      anchor: new google.maps.Point(CLUSTER_SIZE / 2, CLUSTER_SIZE / 2),
+    };
+    const clusterMarker = new google.maps.Marker({
+      position: center,
+      map,
+      icon: clusterIcon,
+      zIndex: 1000,
+    });
+
+    let spiderMarkers = [];
+    let spiderLegs = [];
+    let open = false;
+
+    function collapse() {
+      if (!open) {
+        return;
+      }
+      spiderMarkers.forEach((mk) => mk.setMap(null));
+      spiderLegs.forEach((leg) => leg.setMap(null));
+      spiderMarkers = [];
+      spiderLegs = [];
+      open = false;
+      clusterMarker.setOpacity(1);
+    }
+
+    async function expand() {
+      const projection = await projectionPromise;
+      const centerLatLng = new google.maps.LatLng(center);
+      const centerPoint = projection.fromLatLngToDivPixel(centerLatLng);
+      const offsets = spiderfyOffsets(group.length);
+      group.forEach((m, i) => {
+        const point = new google.maps.Point(
+          centerPoint.x + offsets[i].dx,
+          centerPoint.y + offsets[i].dy
+        );
+        const latlng = projection.fromDivPixelToLatLng(point);
+        spiderMarkers.push(addGoogleMarker({ ...m, lat: latlng.lat(), lng: latlng.lng() }));
+        spiderLegs.push(
+          new google.maps.Polyline({
+            path: [centerLatLng, latlng],
+            strokeColor: "#999999",
+            strokeOpacity: 0.8,
+            strokeWeight: 1,
+            clickable: false,
+            map,
+          })
+        );
+      });
+      clusterMarker.setOpacity(0.6);
+      open = true;
+    }
+
+    clusterMarker.addListener("click", () => {
+      if (open) {
+        collapse();
+      } else {
+        openClusters.forEach((c) => c !== api && c.collapse());
+        expand();
+      }
+    });
+
+    // Coordinate schermo diverse dopo uno zoom: richiudiamo per evitare pin
+    // posizionati in punti non più coerenti con il cluster.
+    map.addListener("zoom_changed", collapse);
+    map.addListener("dragstart", collapse);
+
+    const api = { collapse };
+    openClusters.push(api);
+  }
+
+  groupMarkersByPosition(points).forEach((group) => {
+    if (group.length > 1) {
+      addGoogleCluster(group);
+    } else {
+      addGoogleMarker(group[0]);
+    }
   });
+
+  // Click su un punto vuoto della mappa: richiude eventuali cluster aperti.
+  map.addListener("click", () => openClusters.forEach((c) => c.collapse()));
 
   if (points.length === 1) {
     map.setCenter(bounds.getCenter());

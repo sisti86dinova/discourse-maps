@@ -27,6 +27,14 @@
     border: none;
   }
 
+  // Pin "cluster" (cerchio numerato) mostrato quando più topic condividono
+  // la stessa posizione: al click si apre a raggiera nei singoli pin.
+  .discourse-maps-cluster {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+  }
+
   // --- Responsive -----------------------------------------------------------
   // Su tablet riduciamo leggermente l'altezza.
   @media screen and (max-width: 1024px) {
