@@ -370,10 +370,10 @@ export default class MapPage extends Component {
 
         {{#if this.canCreateTopic}}
           <DButton
-            @icon="plus"
+            @icon="far-pen-to-square"
             @label="discourse_maps.filters.new_topic"
             @action={{this.createTopic}}
-            class="btn-primary discourse-maps-filters__new-topic"
+            class="btn btn-icon-text d-combo-button-button btn-default"
           />
         {{/if}}
       </div>

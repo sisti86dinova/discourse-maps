@@ -10,7 +10,7 @@ it:
         all_tags: "Tutti i tag"
         all_countries: "Tutte le nazioni"
         reset: "Rimuovi filtri"
-        new_topic: "Nuovo topic"
+        new_topic: "Nuovo argomento"
       composer:
         button_title: "Aggiungi una posizione alla mappa"
       modal:
