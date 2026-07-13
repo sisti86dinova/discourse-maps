@@ -26,7 +26,7 @@ const DEFAULT_CENTER = { lat: 41.9, lng: 12.5 };
 const DEFAULT_ZOOM = 5;
 // Esportato: la mappa statica del topic usa lo stesso zoom per coerenza
 // visiva con la mappa interattiva a marker singolo.
-export const SINGLE_MARKER_ZOOM = 14;
+export const SINGLE_MARKER_ZOOM = 16;
 
 // Colore di fallback per i marker senza categoria (o categoria senza colore).
 // Esportate perché anche il pin sovrapposto alla mappa statica (nella pagina
@@ -247,7 +247,7 @@ export async function geocodeAddress(query, siteSettings) {
  * @returns {string}
  */
 export function staticMapUrl(location, siteSettings, options = {}) {
-  const { width = 600, height = 300, zoom = SINGLE_MARKER_ZOOM } = options;
+  const { width = 1200, height = 500, zoom = SINGLE_MARKER_ZOOM } = options;
   const { lat, lng } = location;
 
   if (siteSettings.discourse_maps_provider === "google") {
