@@ -73,12 +73,13 @@
     margin-bottom: 1em;
 
     .discourse-maps-filters__reset {
+      display: inline-flex;
       flex: 0 0 auto;
       height: 2.5em;
       padding: 0 1em;
       border-radius: 4px;
-      background: var(--secondary);
-      color: var(--primary);
+      background-color: var(--d-button-danger-bg-color);
+      color: var(--d-button-danger-text-color);
       cursor: pointer;
 
       &:hover {
@@ -87,9 +88,7 @@
 
       &.disabled,
       &:disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
-        pointer-events: none;
+        display: none;
       }
     }
 
