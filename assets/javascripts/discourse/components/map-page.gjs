@@ -104,35 +104,41 @@ export default class MapPage extends Component {
     return this.availableCategories.some((c) => c.id === id) ? id : null;
   }
 
+  // Nessuna proprietà valore per i ComboBox tag/paese (vedi sotto): serve un
+  // riferimento stabile (non un letterale "null" nel template, che Glimmer
+  // non accetta come mustache) per disabilitare esplicitamente il
+  // valueProperty di default ("id") del ComboBox.
+  noValueProperty = null;
+
   // Tag da proporre nel filtro: solo quelli presenti tra i topic mostrabili
-  // (indicati dal server come oggetti { id, name }). NON semplificare a un
-  // array di sole stringhe: il ComboBox deduplica il contenuto internamente
-  // usando item[valueProperty] (default "id"), e su delle stringhe pure
-  // quella chiave è sempre undefined per ognuna, quindi tutte le voci
-  // collassano su una sola. @valueProperty="name" nel template dà una chiave
-  // univoca per riga ed evita il problema.
-  get availableTags() {
-    return this.args.filters?.tags || [];
+  // (indicati dal server), passati al ComboBox come semplice elenco di nomi
+  // (stringhe). Con @valueProperty={{this.noValueProperty}} nel template il
+  // ComboBox: (1) NON deduplica il contenuto (la dedup interna usa
+  // item[valueProperty], che col default "id" collasserebbe tutte le
+  // stringhe su un'unica voce perché "qualsiasi_stringa"["id"] è sempre
+  // undefined); (2) confronta il valore selezionato per uguaglianza diretta
+  // (===), l'unico confronto affidabile per un elenco di stringhe pure.
+  get availableTagNames() {
+    return (this.args.filters?.tags || []).map((t) => t.name);
   }
 
   // Un solo tag selezionabile per volta, come la categoria. Torniamo null se
   // il tag non è (più) tra quelli disponibili.
   get selectedTagName() {
     const name = (this.args.selectedTags && this.args.selectedTags[0]) || null;
-    return name && this.availableTags.some((t) => t.name === name) ? name : null;
+    return name && this.availableTagNames.includes(name) ? name : null;
   }
 
   // Paesi da proporre nel filtro: solo quelli presenti tra i topic
-  // mostrabili (indicati dal server come oggetti { id, name }), per lo
-  // stesso motivo dei tag (vedi sopra).
-  get availableCountries() {
-    return this.args.filters?.countries || [];
+  // mostrabili (indicati dal server), per lo stesso motivo dei tag (sopra).
+  get availableCountryNames() {
+    return (this.args.filters?.countries || []).map((c) => c.name);
   }
 
   // Paese selezionato: null se non è (più) tra quelli disponibili.
   get selectedCountryName() {
     const name = this.args.countryName || null;
-    return name && this.availableCountries.some((c) => c.name === name) ? name : null;
+    return name && this.availableCountryNames.includes(name) ? name : null;
   }
 
   // Un filtro è "attivo" in base allo stato passato dalla rotta (URL), non in
@@ -304,18 +310,18 @@ export default class MapPage extends Component {
 
         <ComboBox
           @value={{this.selectedTagName}}
-          @content={{this.availableTags}}
+          @content={{this.availableTagNames}}
           @onChange={{this.handleTagChange}}
-          @valueProperty="name"
+          @valueProperty={{this.noValueProperty}}
           @options={{hash none="discourse_maps.filters.all_tags"}}
           class="discourse-maps-filters__tags"
         />
 
         <ComboBox
           @value={{this.selectedCountryName}}
-          @content={{this.availableCountries}}
+          @content={{this.availableCountryNames}}
           @onChange={{this.handleCountryChange}}
-          @valueProperty="name"
+          @valueProperty={{this.noValueProperty}}
           @options={{hash none="discourse_maps.filters.all_countries"}}
           class="discourse-maps-filters__countries"
         />
