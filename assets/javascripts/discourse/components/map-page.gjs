@@ -373,7 +373,7 @@ export default class MapPage extends Component {
             @icon="far-pen-to-square"
             @label="discourse_maps.filters.new_topic"
             @action={{this.createTopic}}
-            class="btn btn-icon-text d-combo-button-button btn-default"
+            class="btn btn-icon-text d-combo-button-button btn-default discourse-maps-filters__new-topic"
           />
         {{/if}}
       </div>
