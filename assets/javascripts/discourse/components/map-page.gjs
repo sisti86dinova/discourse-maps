@@ -105,30 +105,34 @@ export default class MapPage extends Component {
   }
 
   // Tag da proporre nel filtro: solo quelli presenti tra i topic mostrabili
-  // (indicati dal server). Passiamo al ComboBox i soli nomi (stringhe): sono
-  // già l'unico dato che serve per il filtro e per il valore selezionato,
-  // evitando qualunque ambiguità tra id del tag e nome scelto come valore.
-  get availableTagNames() {
-    return (this.args.filters?.tags || []).map((t) => t.name);
+  // (indicati dal server come oggetti { id, name }). NON semplificare a un
+  // array di sole stringhe: il ComboBox deduplica il contenuto internamente
+  // usando item[valueProperty] (default "id"), e su delle stringhe pure
+  // quella chiave è sempre undefined per ognuna, quindi tutte le voci
+  // collassano su una sola. @valueProperty="name" nel template dà una chiave
+  // univoca per riga ed evita il problema.
+  get availableTags() {
+    return this.args.filters?.tags || [];
   }
 
   // Un solo tag selezionabile per volta, come la categoria. Torniamo null se
   // il tag non è (più) tra quelli disponibili.
   get selectedTagName() {
     const name = (this.args.selectedTags && this.args.selectedTags[0]) || null;
-    return name && this.availableTagNames.includes(name) ? name : null;
+    return name && this.availableTags.some((t) => t.name === name) ? name : null;
   }
 
   // Paesi da proporre nel filtro: solo quelli presenti tra i topic
-  // mostrabili (indicati dal server), come semplice elenco di nomi.
-  get availableCountryNames() {
-    return (this.args.filters?.countries || []).map((c) => c.name);
+  // mostrabili (indicati dal server come oggetti { id, name }), per lo
+  // stesso motivo dei tag (vedi sopra).
+  get availableCountries() {
+    return this.args.filters?.countries || [];
   }
 
   // Paese selezionato: null se non è (più) tra quelli disponibili.
   get selectedCountryName() {
     const name = this.args.countryName || null;
-    return name && this.availableCountryNames.includes(name) ? name : null;
+    return name && this.availableCountries.some((c) => c.name === name) ? name : null;
   }
 
   // Un filtro è "attivo" in base allo stato passato dalla rotta (URL), non in
@@ -300,16 +304,18 @@ export default class MapPage extends Component {
 
         <ComboBox
           @value={{this.selectedTagName}}
-          @content={{this.availableTagNames}}
+          @content={{this.availableTags}}
           @onChange={{this.handleTagChange}}
+          @valueProperty="name"
           @options={{hash none="discourse_maps.filters.all_tags"}}
           class="discourse-maps-filters__tags"
         />
 
         <ComboBox
           @value={{this.selectedCountryName}}
-          @content={{this.availableCountryNames}}
+          @content={{this.availableCountries}}
           @onChange={{this.handleCountryChange}}
+          @valueProperty="name"
           @options={{hash none="discourse_maps.filters.all_countries"}}
           class="discourse-maps-filters__countries"
         />
