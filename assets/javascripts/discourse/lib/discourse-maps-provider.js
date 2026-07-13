@@ -24,12 +24,17 @@ const LEAFLET_CSS = "/plugins/discourse-maps/leaflet/leaflet.css";
 // Vista di default (centro Italia) quando non ci sono coordinate valide.
 const DEFAULT_CENTER = { lat: 41.9, lng: 12.5 };
 const DEFAULT_ZOOM = 5;
-const SINGLE_MARKER_ZOOM = 14;
+// Esportato: la mappa statica del topic usa lo stesso zoom per coerenza
+// visiva con la mappa interattiva a marker singolo.
+export const SINGLE_MARKER_ZOOM = 14;
 
 // Colore di fallback per i marker senza categoria (o categoria senza colore).
-const DEFAULT_MARKER_COLOR = "#0088CC";
-const MARKER_WIDTH = 25;
-const MARKER_HEIGHT = 41;
+// Esportate perché anche il pin sovrapposto alla mappa statica (nella pagina
+// del topic) deve avere le stesse dimensioni/colore di fallback dei marker
+// della mappa interattiva.
+export const DEFAULT_MARKER_COLOR = "#0088CC";
+export const MARKER_WIDTH = 25;
+export const MARKER_HEIGHT = 41;
 
 // Marker con le stesse coordinate (arrotondate a questa precisione, ~1m)
 // vengono raggruppati in un unico pin "cluster" con il conteggio.
@@ -222,6 +227,42 @@ export async function geocodeAddress(query, siteSettings) {
     return geocodeGoogle(query, siteSettings.discourse_maps_google_api_key);
   }
   return geocodeLocationIQ(query, siteSettings.discourse_maps_locationiq_api_key);
+}
+
+// ===========================================================================
+//  MAPPA STATICA (pagina del topic)
+// ===========================================================================
+//  Un'immagine sola (nessuna chiamata a Leaflet/Google Maps JS, quindi niente
+//  tile né consumo di quota "dinamica") centrata sul punto, senza alcun
+//  marker richiesto al provider: il pin colorato per categoria viene
+//  disegnato sopra via CSS dal componente che usa questo URL, non fa parte
+//  dell'immagine.
+// ===========================================================================
+
+/**
+ * Costruisce l'URL dell'immagine statica per il provider configurato.
+ * @param {{lat:number, lng:number}} location
+ * @param {Object} siteSettings
+ * @param {{width?:number, height?:number, zoom?:number}} [options]
+ * @returns {string}
+ */
+export function staticMapUrl(location, siteSettings, options = {}) {
+  const { width = 600, height = 300, zoom = SINGLE_MARKER_ZOOM } = options;
+  const { lat, lng } = location;
+
+  if (siteSettings.discourse_maps_provider === "google") {
+    const apiKey = siteSettings.discourse_maps_google_api_key;
+    return (
+      `https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lng}` +
+      `&zoom=${zoom}&size=${width}x${height}&key=${encodeURIComponent(apiKey)}`
+    );
+  }
+
+  const apiKey = siteSettings.discourse_maps_locationiq_api_key;
+  return (
+    `https://maps.locationiq.com/v3/staticmap?key=${encodeURIComponent(apiKey)}` +
+    `&center=${lat},${lng}&zoom=${zoom}&size=${width}x${height}&format=png`
+  );
 }
 
 // ===========================================================================
