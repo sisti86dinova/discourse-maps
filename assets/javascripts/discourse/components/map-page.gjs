@@ -27,6 +27,7 @@
 
 import Component from "@glimmer/component";
 import { tracked } from "@glimmer/tracking";
+import { action } from "@ember/object";
 import { service } from "@ember/service";
 import { hash } from "@ember/helper";
 import { on } from "@ember/modifier";
@@ -35,6 +36,7 @@ import didInsert from "@ember/render-modifiers/modifiers/did-insert";
 import didUpdate from "@ember/render-modifiers/modifiers/did-update";
 import willDestroy from "@ember/render-modifiers/modifiers/will-destroy";
 import { i18n } from "discourse-i18n";
+import DButton from "discourse/components/d-button";
 import icon from "discourse/helpers/d-icon";
 import ComboBox from "discourse/select-kit/components/combo-box";
 import DiscourseMapsMap from "./discourse-maps-map";
@@ -61,6 +63,9 @@ const RELATIVE_TIME_DIVISIONS = [
 
 export default class MapPage extends Component {
   @service site;
+  @service siteSettings;
+  @service currentUser;
+  @service composer;
 
   @tracked visibleCount = PAGE_SIZE;
 
@@ -164,6 +169,34 @@ export default class MapPage extends Component {
   handleCountryChange = (value) => {
     this.args.onChangeCountry(value ?? null);
   };
+
+  // Il pulsante "Nuovo topic" è visibile solo agli admin e ai membri dei
+  // gruppi indicati nell'impostazione discourse_maps_new_topic_groups
+  // (elenco di id gruppo separati da "|", vuoto = solo admin).
+  get canCreateTopic() {
+    const user = this.currentUser;
+    if (!user) {
+      return false;
+    }
+    if (user.admin) {
+      return true;
+    }
+
+    const allowedGroupIds = (this.siteSettings.discourse_maps_new_topic_groups || "")
+      .split("|")
+      .filter(Boolean)
+      .map(Number);
+    if (!allowedGroupIds.length) {
+      return false;
+    }
+
+    return (user.groups || []).some((g) => allowedGroupIds.includes(g.id));
+  }
+
+  @action
+  createTopic() {
+    this.composer.openNewTopic();
+  }
 
   resetFilters = () => {
     this.args.onChangeCategory(null);
@@ -334,6 +367,15 @@ export default class MapPage extends Component {
         >
           {{i18n "discourse_maps.filters.reset"}}
         </button>
+
+        {{#if this.canCreateTopic}}
+          <DButton
+            @icon="plus"
+            @label="discourse_maps.filters.new_topic"
+            @action={{this.createTopic}}
+            class="btn-primary discourse-maps-filters__new-topic"
+          />
+        {{/if}}
       </div>
 
       {{! Mappa con tutti i pin del risultato filtrato. }}

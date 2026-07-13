@@ -72,16 +72,6 @@
     margin-top: 1em;
     margin-bottom: 1em;
 
-    // Categoria e tag usano il ComboBox nativo di Discourse (select-kit):
-    // qui serve solo il dimensionamento nel flex della barra filtri, lo
-    // stile del controllo in sé arriva dal CSS di select-kit.
-    .discourse-maps-filters__category,
-    .discourse-maps-filters__tags,
-    .discourse-maps-filters__countries {
-      min-width: 220px;
-      flex: 1 1 220px;
-    }
-
     .discourse-maps-filters__reset {
       flex: 0 0 auto;
       height: 2.5em;
@@ -103,6 +93,13 @@
       }
     }
 
+    // Pulsante "Nuovo topic" (visibile solo ad admin/gruppi abilitati):
+    // sempre allineato a destra della barra filtri.
+    .discourse-maps-filters__new-topic {
+      margin-left: auto;
+      flex: 0 0 auto;
+    }
+
     // Su smartphone i filtri vanno a tutta larghezza, uno sotto l'altro.
     @media screen and (max-width: 767px) {
       flex-direction: column;
@@ -112,6 +109,10 @@
       .discourse-maps-filters__countries {
         min-width: 0;
         flex: 1 1 auto;
+      }
+
+      .discourse-maps-filters__new-topic {
+        margin-left: 0;
       }
     }
   }
