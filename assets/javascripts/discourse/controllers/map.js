@@ -7,7 +7,7 @@
 // ============================================================================
 
 import Controller from "@ember/controller";
-import { action } from "@ember/object";
+import { action, computed } from "@ember/object";
 
 export default class MapController extends Controller {
   // Query param sincronizzati con l'URL.
@@ -20,11 +20,21 @@ export default class MapController extends Controller {
   countries = null;
 
   // Array dei tag selezionati (comodo per il tag chooser).
+  //
+  // @computed con dipendenza esplicita su "tags": un getter nativo (senza
+  // @computed) su un Controller classico NON viene ri-eseguito quando
+  // this.tags cambia via this.set(), perché legge la proprietà con un
+  // semplice this.tags invece di un accesso tracciato da Ember. Il risultato
+  // resterebbe quindi bloccato al valore calcolato al primo render, anche se
+  // l'URL e il modello si aggiornano correttamente.
+  @computed("tags")
   get selectedTags() {
     return this.tags ? this.tags.split(",") : [];
   }
 
-  // Paese attualmente selezionato (filtro singolo, come la categoria).
+  // Paese attualmente selezionato (filtro singolo, come la categoria). Stessa
+  // ragione di sopra per il @computed("countries") esplicito.
+  @computed("countries")
   get countryName() {
     return this.countries ? this.countries.split(",")[0] : null;
   }
