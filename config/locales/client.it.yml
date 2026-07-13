@@ -23,6 +23,7 @@ it:
           postcode: "CAP"
           city: "Città"
           country: "Nazione"
+          country_none: "Seleziona una nazione"
         errors:
           generic: "Impossibile trovare l'indirizzo. Controlla i dati inseriti."
           not_found: "Nessun risultato trovato per questo indirizzo."

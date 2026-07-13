@@ -10,12 +10,14 @@
 import Component from "@glimmer/component";
 import { tracked } from "@glimmer/tracking";
 import { action } from "@ember/object";
-import { fn } from "@ember/helper";
+import { fn, hash } from "@ember/helper";
 import { on } from "@ember/modifier";
 import { service } from "@ember/service";
 import DButton from "discourse/components/d-button";
 import DModal from "discourse/components/d-modal";
+import ComboBox from "discourse/select-kit/components/combo-box";
 import { i18n } from "discourse-i18n";
+import { COUNTRIES } from "../lib/countries";
 import { geocodeAddress } from "../lib/discourse-maps-provider";
 
 export default class DiscourseMapsLocationModal extends Component {
@@ -56,6 +58,18 @@ export default class DiscourseMapsLocationModal extends Component {
   @action
   updateField(field, event) {
     this[field] = event.target.value;
+  }
+
+  // Elenco fisso di paesi selezionabili (evita grafie diverse per lo stesso
+  // paese, es. "Italia" / "italia", che altrimenti risulterebbero voci
+  // distinte nel filtro paese della pagina /map).
+  countries = COUNTRIES;
+
+  // Aggiorna il campo paese: il ComboBox restituisce direttamente il valore
+  // scelto (non un evento DOM), quindi serve un'azione dedicata.
+  @action
+  updateCountry(value) {
+    this.country = value ?? "";
   }
 
   // Esegue il geocoding e salva la posizione sul modello del composer.
@@ -148,10 +162,11 @@ export default class DiscourseMapsLocationModal extends Component {
 
           <div class="control-group">
             <label>{{i18n "discourse_maps.modal.fields.country"}}</label>
-            <input
-              type="text"
-              value={{this.country}}
-              {{on "input" (fn this.updateField "country")}}
+            <ComboBox
+              @value={{this.country}}
+              @content={{this.countries}}
+              @onChange={{this.updateCountry}}
+              @options={{hash none="discourse_maps.modal.fields.country_none"}}
             />
           </div>
 

@@ -90,21 +90,45 @@ export default class MapPage extends Component {
       .sort((a, b) => a.name.localeCompare(b.name));
   }
 
-  // Tag da proporre nel filtro: solo quelli presenti tra i topic
-  // mostrabili (indicati dal server).
-  get availableTags() {
-    return this.args.filters?.tags || [];
+  // Valore per il ComboBox categoria: @categoryId arriva dalla query string
+  // (quindi sempre come stringa), ma gli id delle categorie sono numeri. Senza
+  // questa conversione il ComboBox non trova la riga corrispondente e mostra
+  // l'id al posto del nome. Se l'id non è (più) tra quelli disponibili
+  // torniamo null invece di mostrare un valore che non può essere risolto.
+  get categoryIdValue() {
+    const raw = this.args.categoryId;
+    if (raw === null || raw === undefined || raw === "") {
+      return null;
+    }
+    const id = Number(raw);
+    return this.availableCategories.some((c) => c.id === id) ? id : null;
   }
 
-  // Un solo tag selezionabile per volta, come la categoria.
+  // Tag da proporre nel filtro: solo quelli presenti tra i topic mostrabili
+  // (indicati dal server). Passiamo al ComboBox i soli nomi (stringhe): sono
+  // già l'unico dato che serve per il filtro e per il valore selezionato,
+  // evitando qualunque ambiguità tra id del tag e nome scelto come valore.
+  get availableTagNames() {
+    return (this.args.filters?.tags || []).map((t) => t.name);
+  }
+
+  // Un solo tag selezionabile per volta, come la categoria. Torniamo null se
+  // il tag non è (più) tra quelli disponibili.
   get selectedTagName() {
-    return (this.args.selectedTags && this.args.selectedTags[0]) || null;
+    const name = (this.args.selectedTags && this.args.selectedTags[0]) || null;
+    return name && this.availableTagNames.includes(name) ? name : null;
   }
 
   // Paesi da proporre nel filtro: solo quelli presenti tra i topic
-  // mostrabili (indicati dal server).
-  get availableCountries() {
-    return this.args.filters?.countries || [];
+  // mostrabili (indicati dal server), come semplice elenco di nomi.
+  get availableCountryNames() {
+    return (this.args.filters?.countries || []).map((c) => c.name);
+  }
+
+  // Paese selezionato: null se non è (più) tra quelli disponibili.
+  get selectedCountryName() {
+    const name = this.args.countryName || null;
+    return name && this.availableCountryNames.includes(name) ? name : null;
   }
 
   get hasActiveFilters() {
@@ -265,7 +289,7 @@ export default class MapPage extends Component {
       {{! Filtri: categoria e tag, solo quelli presenti tra i topic elencati. }}
       <div class="discourse-maps-filters">
         <ComboBox
-          @value={{@categoryId}}
+          @value={{this.categoryIdValue}}
           @content={{this.availableCategories}}
           @onChange={{this.handleCategoryChange}}
           @options={{hash none="discourse_maps.filters.all_categories"}}
@@ -274,18 +298,16 @@ export default class MapPage extends Component {
 
         <ComboBox
           @value={{this.selectedTagName}}
-          @content={{this.availableTags}}
+          @content={{this.availableTagNames}}
           @onChange={{this.handleTagChange}}
-          @valueProperty="name"
           @options={{hash none="discourse_maps.filters.all_tags"}}
           class="discourse-maps-filters__tags"
         />
 
         <ComboBox
-          @value={{@countryName}}
-          @content={{this.availableCountries}}
+          @value={{this.selectedCountryName}}
+          @content={{this.availableCountryNames}}
           @onChange={{this.handleCountryChange}}
-          @valueProperty="name"
           @options={{hash none="discourse_maps.filters.all_countries"}}
           class="discourse-maps-filters__countries"
         />

@@ -23,6 +23,7 @@ en:
           postcode: "Postcode"
           city: "City"
           country: "Country"
+          country_none: "Select a country"
         errors:
           generic: "Unable to find the address. Please check the entered data."
           not_found: "No results found for this address."
