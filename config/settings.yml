@@ -16,7 +16,7 @@ plugins:
     client: true
 
   # Gruppi (oltre agli amministratori, che lo vedono sempre) abilitati a
-  # vedere il pulsante "Nuovo topic" nella pagina /map. Vuoto = solo admin.
+  # vedere il pulsante "Nuovo argomento" nella pagina /map. Vuoto = solo admin.
   discourse_maps_new_topic_groups:
     client: true
     type: group_list
