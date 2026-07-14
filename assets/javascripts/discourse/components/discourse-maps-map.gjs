@@ -48,6 +48,11 @@ export default class DiscourseMapsMap extends Component {
       apiKey: this.apiKey,
       markers: this.markers,
       interactive: this.args.interactive ?? true,
+      // La site setting "color" salva l'esadecimale senza "#" (come i colori
+      // delle categorie): lo normalizziamo qui per usarlo diretto nell'SVG.
+      clusterColor: this.siteSettings.discourse_maps_cluster_color
+        ? `#${this.siteSettings.discourse_maps_cluster_color.replace(/^#/, "")}`
+        : undefined,
     });
   }
 

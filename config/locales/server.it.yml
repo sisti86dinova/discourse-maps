@@ -3,6 +3,7 @@ it:
     discourse_maps_enabled: "Abilita il plugin Discourse Maps."
     discourse_maps_map_tag_id: "ID del tag assegnato automaticamente ai topic che usano la mappa (default: 295)."
     discourse_maps_new_topic_groups: "Gruppi (oltre agli amministratori, che lo vedono sempre) abilitati a vedere il pulsante \"Nuovo argomento\" nella pagina /map. Vuoto = solo admin."
+    discourse_maps_cluster_color: "Colore di sfondo del pin \"cluster\" (il cerchio numerato mostrato quando più topic condividono lo stesso punto sulla mappa)."
     discourse_maps_provider: "Provider di mappa/geocoding da utilizzare."
     discourse_maps_locationiq_api_key: "Chiave API di LocationIQ (usata quando il provider è 'locationiq')."
     discourse_maps_google_api_key: "Chiave API di Google Maps (usata quando il provider è 'google')."

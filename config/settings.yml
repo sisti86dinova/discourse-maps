@@ -24,6 +24,13 @@ plugins:
     default: ""
     allow_any: false
 
+  # Colore di sfondo del pin "cluster" (il cerchio numerato che indica più
+  # topic sovrapposti nello stesso punto della mappa).
+  discourse_maps_cluster_color:
+    client: true
+    type: color
+    default: "0088CC"
+
   # --------------------------------------------------------------------------
   #  Provider della mappa e del geocoding.
   #  Il plugin supporta due provider intercambiabili:

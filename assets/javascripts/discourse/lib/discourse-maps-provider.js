@@ -281,7 +281,7 @@ function normalizeMarkers(markers) {
 }
 
 // --- Mappa Leaflet (provider LocationIQ / OpenStreetMap) -------------------
-async function createLeafletMap(element, { markers, interactive, apiKey }) {
+async function createLeafletMap(element, { markers, interactive, apiKey, clusterColor }) {
   const L = await ensureLeaflet();
 
   const map = L.map(element, {
@@ -337,7 +337,7 @@ async function createLeafletMap(element, { markers, interactive, apiKey }) {
     const center = L.latLng(group[0].lat, group[0].lng);
     const clusterIcon = L.divIcon({
       className: "discourse-maps-cluster",
-      html: clusterSvg(group.length, group[0].color),
+      html: clusterSvg(group.length, clusterColor),
       iconSize: [CLUSTER_SIZE, CLUSTER_SIZE],
       iconAnchor: [CLUSTER_SIZE / 2, CLUSTER_SIZE / 2],
     });
@@ -442,7 +442,7 @@ function getGoogleProjection(google, map) {
 }
 
 // --- Mappa Google Maps -----------------------------------------------------
-async function createGoogleMap(element, { markers, interactive, apiKey }) {
+async function createGoogleMap(element, { markers, interactive, apiKey, clusterColor }) {
   const google = await ensureGoogle(apiKey);
 
   const map = new google.maps.Map(element, {
@@ -494,7 +494,7 @@ async function createGoogleMap(element, { markers, interactive, apiKey }) {
   function addGoogleCluster(group) {
     const center = { lat: group[0].lat, lng: group[0].lng };
     const clusterIcon = {
-      url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(clusterSvg(group.length, group[0].color))}`,
+      url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(clusterSvg(group.length, clusterColor))}`,
       scaledSize: new google.maps.Size(CLUSTER_SIZE, CLUSTER_SIZE),
       anchor: new google.maps.Point(CLUSTER_SIZE / 2, CLUSTER_SIZE / 2),
     };
