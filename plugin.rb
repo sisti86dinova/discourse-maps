@@ -11,7 +11,7 @@
 # ============================================================================
 
 # name: discourse-maps
-# about: Inserisci informazioni geografiche nei topic e visualizzale su una mappa interattiva.
+# about: Associate geographic information in topics and display on an interactive map.
 # version: 1.0.0
 # authors: Stefano Sisti
 # url: https://github.com/sisti86dinova/discourse-maps
