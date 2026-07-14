@@ -243,16 +243,28 @@ export default class MapPage extends Component {
   get rows() {
     return this.locatedTopics.map((topic) => {
       const category = this.category(topic.category_id);
+      const tags = topic.tags || [];
+
+      // Classi "category-<slug>"/"tag-<slug>" sull'item della lista, utili a
+      // temi/CSS esterni per personalizzare l'aspetto in base a categoria e
+      // tag (lo slug del tag in Discourse è il nome stesso del tag).
+      const itemClass = [
+        category?.slug ? `category-${category.slug}` : null,
+        ...tags.map((tag) => `tag-${tag}`),
+      ]
+        .filter(Boolean)
+        .join(" ");
 
       return {
         topic,
         category,
+        itemClass,
         categoryStyle: category
           ? htmlSafe(
               `--category-badge-color: #${category.color};--category-badge-text-color: #${category.text_color};`
             )
           : null,
-        tags: (topic.tags || []).map((tag) => ({
+        tags: tags.map((tag) => ({
           name: tag,
           url: `/tag/${tag}`,
         })),
@@ -384,7 +396,7 @@ export default class MapPage extends Component {
       {{! Lista dei topic geolocalizzati (ordinati per data, paginata a scroll). }}
       <div class="discourse-maps-list">
         {{#each this.visibleRows as |row|}}
-          <div class="discourse-maps-list__item {{if row.topic.visited 'visited'}}">
+          <div class="discourse-maps-list__item {{row.itemClass}} {{if row.topic.visited 'visited'}}">
             <div class="discourse-maps-list__thumbnail">
               <a href={{row.topic.url}} role="img" aria-label={{row.topic.title}}>
                 {{#if row.topic.image_url}}
