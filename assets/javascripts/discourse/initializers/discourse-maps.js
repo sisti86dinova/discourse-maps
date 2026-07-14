@@ -25,6 +25,18 @@ export default {
         return;
       }
 
+      // --- Nasconde il tag "mappa" nelle tendine di selezione tag ----------
+      // Protezione visiva in più, oltre al tag group in sola lettura lato
+      // server (che impedisce di assegnarlo dal composer): nasconde la voce
+      // anche se dovesse comparire in un widget di selezione tag non
+      // coperto da quel permesso.
+      const mapTagId = siteSettings.discourse_maps_map_tag_id;
+      if (mapTagId) {
+        const style = document.createElement("style");
+        style.textContent = `.tags-input li[data-value="${mapTagId}"] { display: none !important; }`;
+        document.head.appendChild(style);
+      }
+
       // --- Link alla pagina /map nella sidebar -----------------------------
       api.addCommunitySectionLink({
         name: "discourse-maps",
