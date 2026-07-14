@@ -385,13 +385,17 @@ export default class MapPage extends Component {
       <div class="discourse-maps-list">
         {{#each this.visibleRows as |row|}}
           <div class="discourse-maps-list__item {{if row.topic.visited 'visited'}}">
-            {{#if row.topic.image_url}}
-              <div class="discourse-maps-list__thumbnail">
-                <a href={{row.topic.url}} role="img" aria-label={{row.topic.title}}>
+            <div class="discourse-maps-list__thumbnail">
+              <a href={{row.topic.url}} role="img" aria-label={{row.topic.title}}>
+                {{#if row.topic.image_url}}
                   <img src={{row.topic.image_url}} loading="lazy" alt="" />
-                </a>
-              </div>
-            {{/if}}
+                {{else}}
+                  <div class="thumbnail-placeholder">
+                    {{icon "comments"}}
+                  </div>
+                {{/if}}
+              </a>
+            </div>
 
             <div class="discourse-maps-list__content">
               <a href={{row.topic.url}} class="discourse-maps-list__title">

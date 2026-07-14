@@ -193,6 +193,23 @@
       height: 100%;
       object-fit: cover;
     }
+
+    // Topic senza immagine in evidenza: stessa area del thumbnail, con
+    // un'icona al centro invece della foto.
+    .thumbnail-placeholder {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      height: 100%;
+      background: var(--primary-low);
+
+      .d-icon {
+        width: 2em;
+        height: 2em;
+        color: var(--primary-medium);
+      }
+    }
   }
 
   &__stats {
@@ -271,7 +288,7 @@
         
         * {
           color: var(--tag-text-color);
-          font-size: var(--d-tag-font-size);
+          font-size: 14px;
           font-weight: var(--d-tag-font-weight);
         }
       }
