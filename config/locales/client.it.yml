@@ -5,16 +5,19 @@ it:
       page_title: "Mappa"
       list:
         empty: "Nessun topic geolocalizzato al momento."
+      popup:
+        category: "Categoria:"
+        tags: "Tags:"
       filters:
         all_categories: "Categorie"
         all_tags: "Tags"
         all_countries: "Nazioni"
         reset: "Rimuovi filtri"
-        new_topic: "Nuovo argomento"
+        new_topic: "Nuovo post"
       composer:
         button_title: "Aggiungi una posizione alla mappa"
       modal:
-        title: "Posizione del topic"
+        title: "Posizione del post"
         save: "Salva posizione"
         remove: "Rimuovi posizione"
         cancel: "Annulla"

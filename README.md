@@ -1,72 +1,89 @@
 # Discourse Maps
 
-Plugin per Discourse che permette di inserire informazioni geografiche nei
-topic e di visualizzarle su una mappa interattiva, con una pagina dedicata
-`/map` che raccoglie tutti i topic geolocalizzati.
+A Discourse plugin that lets users attach a geographic location to a topic
+and shows it on a map — a single pin on the topic page, and an interactive
+map with all geolocated topics on a dedicated `/map` page.
 
-## Stato di avanzamento
+## Dependencies
 
-Lo sviluppo procede per gradi. Stato attuale:
+- [Discourse](https://github.com/discourse/discourse) 2.7.0 or higher
+- [Leaflet](https://github.com/leaflet/Leaflet) 1.9.3 or higher (for the interactive map)
+- [LocationIQ](https://my.locationiq.com/dashboard#accesstoken)
+  or [Google Maps API key](https://console.cloud.google.com/apis/credentials) (for geocoding and map tiles)
 
-- [x] **Step 1 — Struttura del plugin** (scheletro, impostazioni, traduzioni)
-- [x] **Step 2 — Inserimento dati geografici nel composer** + tag automatico (id 295)
-- [x] **Step 3 — Pagina `/map` con mappa interattiva**
-- [x] **Step 4 — Filtri per categorie e tag**
+## Features
 
-## Configurazione
+### Adding a location (composer)
 
-Dopo l'installazione, in **Admin > Impostazioni > Plugin**:
+- One free-text address field in the location modal (toolbar button in the
+  composer). The user types a full address; the configured provider
+  (LocationIQ or Google) geocodes it and returns coordinates, a formatted
+  address, and the country — all parsed automatically, nothing typed by hand
+  besides the address itself. This keeps the country value consistent (no
+  "Italy" vs "italy" duplicates from free typing).
+- On first post creation, the resolved location is saved on the topic and the
+  configured "map" tag is automatically added, which is what makes the topic
+  show up on `/map`.
 
-| Impostazione | Descrizione |
-|---|---|
-| `discourse_maps_enabled` | Abilita/disabilita il plugin. |
-| `discourse_maps_map_tag_id` | ID del tag "mappa" (default: `295`). |
-| `discourse_maps_provider` | Provider mappa/geocoding: `locationiq` o `google`. |
-| `discourse_maps_locationiq_api_key` | Chiave API LocationIQ. |
-| `discourse_maps_google_api_key` | Chiave API Google Maps. |
+### Topic page
 
-## Provider supportati
+- Shows a **static map image** (no Leaflet/Google Maps JavaScript SDK
+  loaded) centered on the saved location — this avoids the API/quota cost of
+  loading a full interactive map for a single, non-interactive pin.
+- The pin itself is a plain SVG overlaid via CSS on top of the static image
+  (always exactly centered, so no lat/lng-to-pixel projection is needed),
+  colored with the topic's category color — same color used everywhere else
+  in the plugin.
 
-Il plugin è progettato per funzionare con due provider intercambiabili:
+### `/map` page
 
-- **LocationIQ** — tiles OpenStreetMap + geocoding (5.000 richieste/giorno gratuite).
-- **Google Maps** — Maps JavaScript API + Google Geocoding.
+- Interactive map (Leaflet + OpenStreetMap/LocationIQ tiles, or Google Maps
+  JavaScript API) with one colored pin per topic (color = topic category).
+- **Clustering**: multiple topics sharing the exact same coordinates collapse
+  into a single numbered "cluster" pin (background color configurable, see
+  Settings). Clicking a cluster "spiderfies" it — the individual pins fan out
+  around the point so each one can be picked and clicked, then collapses
+  again on an outside click, on zoom/pan, or when another cluster/marker is
+  opened.
+- **Filters**: category, tag, and country — each populated only with values
+  actually present among the currently geolocated topics, cross-filtered
+  against each other (choosing a category narrows the tag/country options
+  and vice versa, without ever hiding the option that's currently selected).
+  Filters are query params (shareable/bookmarkable URLs) but are reset when
+  leaving the `/map` route, so returning to the page via a plain link (e.g.
+  from the sidebar) always starts from a clean state.
+- **Reset filters** button, enabled whenever any filter is active.
+- **New topic** button, right-aligned in the filter bar, visible only to
+  admins and to the groups configured in
+  `discourse_maps_new_topic_groups` (see Settings).
+- Topic list below the map: paginated (infinite scroll), one card per
+  geolocated topic with thumbnail (or a placeholder icon when the topic has
+  no featured image), category badge, tags, and stats (views/likes/comments/
+  last activity). Each list item also carries `category-<slug>` and
+  `tag-<slug>` CSS classes for further theme/CSS customization.
+- The category filter's dropdown rows show the category's own icon (when the
+  category uses the "icon" badge style) tinted with the category's color.
 
-## Struttura del progetto
+## Settings
 
-```
-discourse-maps/
-├── plugin.rb                     # Entry point lato server (metadati, settings)
-├── about.json                    # Metadati del plugin
-├── config/
-│   ├── settings.yml              # Impostazioni configurabili da admin
-│   └── locales/
-│       ├── server.en.yml         # Traduzioni impostazioni (EN)
-│       ├── server.it.yml         # Traduzioni impostazioni (IT)
-│       ├── client.en.yml         # Traduzioni lato client (EN)
-│       └── client.it.yml         # Traduzioni lato client (IT)
-└── assets/
-    ├── javascripts/discourse/
-    │   ├── discourse-maps-route-map.js     # Registrazione rotta client /map
-    │   ├── initializers/
-    │   │   └── discourse-maps.js          # Pulsante composer + serializzazione + link sidebar
-    │   ├── routes/
-    │   │   └── map.js                      # Rotta /map (carica i topic dal server)
-    │   ├── controllers/
-    │   │   └── map.js                      # Query param dei filtri (categoria/tag)
-    │   ├── templates/
-    │   │   └── map.hbs                     # Template della pagina /map
-    │   ├── components/
-    │   │   ├── discourse-maps-map.gjs      # Mappa riutilizzabile (Leaflet/Google)
-    │   │   ├── discourse-maps-location-modal.gjs  # Modal inserimento indirizzo
-    │   │   └── map-page.gjs                # Pagina /map: mappa + lista topic
-    │   ├── connectors/topic-above-post-stream/
-    │   │   └── discourse-maps-topic-map.gjs  # Mappa nella pagina del topic
-    │   └── lib/
-    │       └── discourse-maps-provider.js  # Astrazione provider + geocoding
-    └── stylesheets/common/
-        └── discourse-maps.scss             # Stili comuni + media query responsive
-```
+Configurable from **Admin > Settings > Plugins**:
 
+| Setting | Description |
+| --- | --- |
+| `discourse_maps_enabled` | Enables/disables the plugin. |
+| `discourse_maps_map_tag_id` | ID of the tag automatically assigned to topics that use the map feature (default: `295`). |
+| `discourse_maps_new_topic_groups` | Groups (besides admins, who always see it) allowed to see the "New topic" button on `/map`. Empty = admins only. |
+| `discourse_maps_cluster_color` | Background color of the "cluster" pin (the numbered circle shown when multiple topics share the same map location). |
+| `discourse_maps_provider` | Map/geocoding provider: `locationiq` or `google`. |
+| `discourse_maps_locationiq_api_key` | LocationIQ API key. |
+| `discourse_maps_google_api_key` | Google Maps API key. |
 
+## Supported providers
 
+The plugin is built to work interchangeably with either provider — geocoding,
+interactive map, and static map all switch together based on
+`discourse_maps_provider`:
+
+- **LocationIQ** — OpenStreetMap tiles + geocoding (5K free requests/day).
+- **Google Maps** — Maps JavaScript API + Google Geocoding + Static Maps API
+  (10K free requests/month).

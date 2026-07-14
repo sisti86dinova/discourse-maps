@@ -232,20 +232,30 @@ export default class MapPage extends Component {
     );
   }
 
-  // Marker per la mappa, con popup HTML (titolo + categoria + tag + link).
+  // Marker per la mappa, con popup HTML (titolo + categoria + tag, entrambi
+  // cliccabili). Il titolo ha una classe dedicata (discourse-maps-popup__title)
+  // per poterlo stilizzare separatamente dal resto del contenuto del popup.
   get markers() {
     return this.locatedTopics.map((topic) => {
+      const category = this.category(topic.category_id);
       const parts = [
-        `<strong><a href="${topic.url}">${topic.fancy_title || topic.title}</a></strong>`,
+        `<strong class="discourse-maps-popup__title">` +
+          `<a href="${topic.url}">${topic.fancy_title || topic.title}</a>` +
+          `</strong>`,
       ];
 
-      const category = this.category(topic.category_id);
       if (category) {
-        parts.push(category.name);
+        parts.push(
+          `${i18n("discourse_maps.popup.category")} ` +
+            `<a href="${category.url}">${category.name}</a>`
+        );
       }
 
       if (topic.tags?.length) {
-        parts.push(topic.tags.join(", "));
+        const tagLinks = topic.tags
+          .map((tag) => `<a href="/tag/${tag}">${tag}</a>`)
+          .join(", ");
+        parts.push(`${i18n("discourse_maps.popup.tags")} ${tagLinks}`);
       }
 
       return {

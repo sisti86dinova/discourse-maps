@@ -5,6 +5,9 @@ en:
       page_title: "Map"
       list:
         empty: "No geolocated topics yet."
+      popup:
+        category: "Category:"
+        tags: "Tags:"
       filters:
         all_categories: "All categories"
         all_tags: "All tags"

@@ -50,6 +50,16 @@
   }
 }
 
+// Titolo nel popup di un pin (Leaflet e Google Maps): globale, non annidato
+// sotto .discourse-map, perché l'InfoWindow di Google Maps viene renderizzata
+// in un elemento separato, fuori dal contenitore della mappa.
+.discourse-maps-popup__title {
+  display: block;
+  margin-bottom: 0.35em;
+  font-size: var(--font-up-1);
+  font-weight: 700;
+}
+
 // Contenitore della mappa mostrata nella pagina del topic.
 .discourse-maps-topic {
   margin: 0 0 1.5em;
@@ -332,4 +342,6 @@
   }
 }
 
-
+.leaflet-popup-content {
+  margin: 12px 18px 12px 12px;
+}
