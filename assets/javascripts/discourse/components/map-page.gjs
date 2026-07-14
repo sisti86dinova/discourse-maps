@@ -95,6 +95,25 @@ export default class MapPage extends Component {
       .sort((a, b) => a.name.localeCompare(b.name));
   }
 
+  // Righe del ComboBox categoria: quando la categoria ha un'icona (badge
+  // style "icona"), select-kit disegna un <svg><use href="#nome"></use></svg>
+  // dentro la riga (.select-kit-row), ma senza alcun colore: qui generiamo
+  // una regola CSS per riga (scoped su data-value, l'id della categoria) che
+  // colora quell'icona con il colore nativo della categoria. Niente da
+  // validare sull'id (è sempre un numero); il colore invece arriva
+  // dall'admin di Discourse, quindi lo controlliamo comunque prima di
+  // interpolarlo in CSS.
+  get categoryRowIconStyles() {
+    const rules = this.availableCategories
+      .filter((c) => /^[0-9a-fA-F]{3,8}$/.test(c.color || ""))
+      .map(
+        (c) =>
+          `.discourse-maps-filters__category .select-kit-row[data-value="${c.id}"] svg use { fill: #${c.color}; }`
+      )
+      .join("\n");
+    return htmlSafe(rules);
+  }
+
   // Valore per il ComboBox categoria: @categoryId arriva dalla query string
   // (quindi sempre come stringa), ma gli id delle categorie sono numeri. Senza
   // questa conversione il ComboBox non trova la riga corrispondente e mostra
@@ -344,6 +363,8 @@ export default class MapPage extends Component {
 
       {{! Filtri: categoria e tag, solo quelli presenti tra i topic elencati. }}
       <div class="discourse-maps-filters">
+        <style>{{this.categoryRowIconStyles}}</style>
+
         <ComboBox
           @value={{this.categoryIdValue}}
           @content={{this.availableCategories}}
