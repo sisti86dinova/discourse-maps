@@ -238,14 +238,18 @@ export default class MapPage extends Component {
   get markers() {
     return this.locatedTopics.map((topic) => {
       const category = this.category(topic.category_id);
-      const parts = [
-        `<strong class="discourse-maps-popup__title">` +
-          `<a href="${topic.url}">${topic.fancy_title || topic.title}</a>` +
-          `</strong>`,
-      ];
 
+      // Il titolo è già "display: block" via CSS: un <br> dopo aggiungerebbe
+      // solo una riga vuota in più. Va unito senza <br>, mentre categoria e
+      // tag (se entrambi presenti) restano separati da <br>, una riga ciascuno.
+      const title =
+        `<strong class="discourse-maps-popup__title">` +
+        `<a href="${topic.url}">${topic.fancy_title || topic.title}</a>` +
+        `</strong>`;
+
+      const lines = [];
       if (category) {
-        parts.push(
+        lines.push(
           `${i18n("discourse_maps.popup.category")} ` +
             `<a href="${category.url}">${category.name}</a>`
         );
@@ -255,13 +259,13 @@ export default class MapPage extends Component {
         const tagLinks = topic.tags
           .map((tag) => `<a href="/tag/${tag}">${tag}</a>`)
           .join(", ");
-        parts.push(`${i18n("discourse_maps.popup.tags")} ${tagLinks}`);
+        lines.push(`${i18n("discourse_maps.popup.tags")} ${tagLinks}`);
       }
 
       return {
         lat: topic.location.lat,
         lng: topic.location.lng,
-        popupHtml: parts.join("<br>"),
+        popupHtml: title + lines.join("<br>"),
         color: category?.color ? `#${category.color}` : DEFAULT_MARKER_COLOR,
       };
     });
