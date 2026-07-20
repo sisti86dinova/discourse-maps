@@ -46,6 +46,9 @@ export default class DiscourseMapsMap extends Component {
     this.mapHandle = await createMap(this.element, {
       provider: this.siteSettings.discourse_maps_provider,
       apiKey: this.apiKey,
+      // Lingua del sito: usata per caricare la libreria Google Maps (etichette
+      // e geocoder coerenti con la lingua del forum).
+      language: (this.siteSettings.default_locale || "en").replace("_", "-"),
       markers: this.markers,
       interactive: this.args.interactive ?? true,
       // La site setting "color" salva l'esadecimale senza "#" (come i colori

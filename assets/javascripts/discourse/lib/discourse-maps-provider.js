@@ -140,12 +140,13 @@ async function ensureLeaflet() {
   return window.L;
 }
 
-async function ensureGoogle(apiKey) {
+async function ensureGoogle(apiKey, language) {
   if (window.google && window.google.maps) {
     return window.google;
   }
+  const langParam = language ? `&language=${encodeURIComponent(language)}` : "";
   await loadScript(
-    `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}`
+    `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}${langParam}`
   );
   return window.google;
 }
@@ -156,17 +157,49 @@ async function ensureGoogle(apiKey) {
 //  L'utente inserisce l'indirizzo completo in un solo campo di testo libero:
 //  è il provider (LocationIQ/Nominatim o Google) a interpretarlo e a
 //  restituire, oltre alle coordinate, i componenti strutturati da cui
-//  estraiamo il paese (usato dal filtro nazione della pagina /map). Così il
-//  paese salvato è sempre quello "canonico" del provider, non una stringa
-//  digitata a mano (che altrimenti porterebbe a grafie diverse per lo stesso
-//  paese, es. "Italia" / "italia").
+//  estraiamo il paese (usato dal filtro nazione della pagina /map).
+//
+//  Il nome del paese NON viene preso com'è dalla risposta del provider: la
+//  lingua di quella stringa dipende dalla lingua dell'indirizzo digitato e
+//  dalle preferenze della richiesta (es. "Italy" se l'utente scrive
+//  "... bologna italy"), il che creerebbe duplicati nel filtro nazione
+//  ("Italia" / "Italy"). Prendiamo invece il codice ISO 3166-1 alpha-2 del
+//  paese e lo traduciamo nella lingua del sito con Intl.DisplayNames: il
+//  nome salvato è così sempre canonico e in un'unica lingua.
 // ===========================================================================
 
+// Lingua del sito (es. "it"), usata per richieste di geocoding e per il nome
+// del paese. Il locale di Discourse usa l'underscore (es. "en_GB"), i
+// costruttori Intl e i provider vogliono il trattino.
+function siteLocale(siteSettings) {
+  return (siteSettings.default_locale || "en").replace("_", "-");
+}
+
+// Converte un codice ISO 3166-1 alpha-2 (es. "IT") nel nome del paese nella
+// lingua indicata (es. "Italia"). Restituisce null se il codice manca o non
+// è riconosciuto, così il chiamante può ricadere sul nome del provider.
+function countryNameFromCode(code, locale) {
+  if (!code) {
+    return null;
+  }
+  try {
+    const upper = code.toUpperCase();
+    const name = new Intl.DisplayNames([locale], { type: "region" }).of(upper);
+    // Per i codici sconosciuti .of() restituisce il codice stesso.
+    return name && name !== upper ? name : null;
+  } catch {
+    return null;
+  }
+}
+
 // Geocoding tramite l'endpoint REST di LocationIQ (supporta CORS).
-async function geocodeLocationIQ(query, apiKey) {
+// "accept-language" forza la lingua del sito nella risposta (display_name);
+// il paese viene comunque derivato dal country_code, non dalla stringa.
+async function geocodeLocationIQ(query, apiKey, locale) {
   const url =
     `https://us1.locationiq.com/v1/search?key=${encodeURIComponent(apiKey)}` +
-    `&q=${encodeURIComponent(query)}&format=json&addressdetails=1&limit=1`;
+    `&q=${encodeURIComponent(query)}&format=json&addressdetails=1&limit=1` +
+    `&accept-language=${encodeURIComponent(locale)}`;
 
   const response = await fetch(url);
   if (!response.ok) {
@@ -182,13 +215,19 @@ async function geocodeLocationIQ(query, apiKey) {
     lat: parseFloat(data[0].lat),
     lng: parseFloat(data[0].lon),
     display_name: data[0].display_name,
-    country: data[0].address?.country || null,
+    country:
+      countryNameFromCode(data[0].address?.country_code, locale) ||
+      data[0].address?.country ||
+      null,
   };
 }
 
 // Geocoding tramite il Geocoder della Google Maps JS API (evita problemi CORS).
-async function geocodeGoogle(query, apiKey) {
-  const google = await ensureGoogle(apiKey);
+// La libreria viene caricata con la lingua del sito (formatted_address
+// coerente); il paese viene derivato dallo short_name (codice ISO), non dal
+// long_name, la cui lingua dipende da come è stato caricato lo script.
+async function geocodeGoogle(query, apiKey, locale) {
+  const google = await ensureGoogle(apiKey, locale);
   const geocoder = new google.maps.Geocoder();
 
   return new Promise((resolve, reject) => {
@@ -202,7 +241,10 @@ async function geocodeGoogle(query, apiKey) {
           lat: location.lat(),
           lng: location.lng(),
           display_name: results[0].formatted_address,
-          country: countryComponent?.long_name || null,
+          country:
+            countryNameFromCode(countryComponent?.short_name, locale) ||
+            countryComponent?.long_name ||
+            null,
         });
       } else {
         reject(new Error(status || "not_found"));
@@ -223,10 +265,16 @@ export async function geocodeAddress(query, siteSettings) {
     throw new Error("empty_address");
   }
 
+  const locale = siteLocale(siteSettings);
+
   if (siteSettings.discourse_maps_provider === "google") {
-    return geocodeGoogle(query, siteSettings.discourse_maps_google_api_key);
+    return geocodeGoogle(query, siteSettings.discourse_maps_google_api_key, locale);
   }
-  return geocodeLocationIQ(query, siteSettings.discourse_maps_locationiq_api_key);
+  return geocodeLocationIQ(
+    query,
+    siteSettings.discourse_maps_locationiq_api_key,
+    locale
+  );
 }
 
 // ===========================================================================
@@ -442,8 +490,11 @@ function getGoogleProjection(google, map) {
 }
 
 // --- Mappa Google Maps -----------------------------------------------------
-async function createGoogleMap(element, { markers, interactive, apiKey, clusterColor }) {
-  const google = await ensureGoogle(apiKey);
+async function createGoogleMap(
+  element,
+  { markers, interactive, apiKey, clusterColor, language }
+) {
+  const google = await ensureGoogle(apiKey, language);
 
   const map = new google.maps.Map(element, {
     center: DEFAULT_CENTER,
@@ -590,7 +641,7 @@ async function createGoogleMap(element, { markers, interactive, apiKey, clusterC
 /**
  * Crea una mappa nel contenitore indicato usando il provider configurato.
  * @param {HTMLElement} element - il div che ospiterà la mappa
- * @param {Object} options - { provider, apiKey, markers, interactive }
+ * @param {Object} options - { provider, apiKey, markers, interactive, language }
  * @returns {Promise<{instance:Object, destroy:Function}>}
  */
 export async function createMap(element, options) {
