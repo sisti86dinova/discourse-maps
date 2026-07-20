@@ -112,13 +112,17 @@
     margin-bottom: 0.75em;
   }
 
-  // Pulsante che apre/chiude il blocco dei filtri: esiste solo su mobile,
-  // su desktop i filtri sono sempre visibili e il pulsante è nascosto.
-  .discourse-maps-filters-toggle {
+  // Riga con toggle filtri + "Nuovo post": esiste solo su mobile, su
+  // desktop entrambi i pulsanti restano al loro posto originale (toggle
+  // nascosto, "Nuovo post" in fondo alla barra filtri) e questo blocco non
+  // occupa spazio.
+  .discourse-maps-mobile-actions {
     display: none;
 
     @media screen and (max-width: 767px) {
-      display: inline-flex;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
       margin-top: 1em;
     }
   }
@@ -141,7 +145,10 @@
     }
 
     // Pulsante "Nuovo topic" (visibile solo ad admin/gruppi abilitati):
-    // sempre allineato a destra della barra filtri.
+    // sempre allineato a destra della barra filtri. Su mobile questa
+    // istanza è nascosta: ne resta visibile solo la copia nella riga del
+    // toggle (.discourse-maps-filters__new-topic--mobile), sempre in vista
+    // anche a filtri chiusi.
     .discourse-maps-filters__new-topic {
       margin-left: auto;
       flex: 0 0 auto;
@@ -154,6 +161,7 @@
     @media screen and (max-width: 767px) {
       flex-direction: column;
       margin-top: 0.75em;
+      margin-bottom: 0;
 
       &.is-collapsed {
         display: none;
@@ -167,8 +175,18 @@
       }
 
       .discourse-maps-filters__new-topic {
-        margin-left: 0;
+        display: none;
       }
+    }
+  }
+
+  // Copia mobile di "Nuovo post" (nella riga del toggle): nascosta su
+  // desktop, dove resta visibile solo l'istanza in fondo alla barra filtri.
+  .discourse-maps-filters__new-topic--mobile {
+    display: none;
+
+    @media screen and (max-width: 767px) {
+      display: inline-flex;
     }
   }
 
@@ -182,6 +200,17 @@
 
     @media screen and (max-width: 767px) {
       height: 300px;
+    }
+  }
+
+  // Su mobile, a filtri espansi la mappa deve staccarsi visibilmente dal
+  // blocco filtri sovrastante: il distacco è un margin-top sulla mappa
+  // (non un margin-bottom sui filtri, rimosso sopra) così, a filtri
+  // chiusi, il pulsante toggle resta attaccato al bordo superiore della
+  // mappa invece di lasciare comunque uno spazio vuoto.
+  @media screen and (max-width: 767px) {
+    .discourse-maps-filters:not(.is-collapsed) + .discourse-map {
+      margin-top: 1em;
     }
   }
 }

@@ -405,16 +405,30 @@ export default class MapPage extends Component {
     <div class="discourse-maps-page" {{didUpdate this.resetPaging @topics}}>
       <h1 class="discourse-maps-page__title">{{i18n "discourse_maps.page_title"}}</h1>
 
-      {{! Toggle dei filtri, visibile solo su mobile (nascosto via CSS su
-          desktop): apre/chiude il blocco dei filtri sottostante. }}
-      <DButton
-        @action={{this.toggleFilters}}
-        @icon={{if this.filtersExpanded "angle-up" "angle-down"}}
-        @translatedLabel={{this.filtersToggleLabel}}
-        aria-expanded={{if this.filtersExpanded "true" "false"}}
-        aria-controls="discourse-maps-filters"
-        class="btn-default discourse-maps-filters-toggle"
-      />
+      {{! Riga di azioni visibile solo su mobile (nascosta via CSS su
+          desktop): il toggle apre/chiude il blocco dei filtri sottostante,
+          "Nuovo post" resta sempre visibile (non è dentro il blocco che si
+          può richiudere) all'estremo opposto della stessa riga. }}
+      <div class="discourse-maps-mobile-actions">
+        <DButton
+          @action={{this.toggleFilters}}
+          @icon={{if this.filtersExpanded "angle-up" "angle-down"}}
+          @translatedLabel={{this.filtersToggleLabel}}
+          aria-expanded={{if this.filtersExpanded "true" "false"}}
+          aria-controls="discourse-maps-filters"
+          class="btn-default discourse-maps-filters-toggle"
+        />
+
+        {{#if this.canCreateTopic}}
+          <DButton
+            @icon="far-pen-to-square"
+            @label="discourse_maps.filters.new_topic"
+            @action={{this.createTopic}}
+            class="btn btn-icon-text d-combo-button-button btn-default
+              discourse-maps-filters__new-topic discourse-maps-filters__new-topic--mobile"
+          />
+        {{/if}}
+      </div>
 
       {{! Filtri: categoria e tag, solo quelli presenti tra i topic elencati.
           Su mobile "is-collapsed" li nasconde finché non si usa il toggle. }}
