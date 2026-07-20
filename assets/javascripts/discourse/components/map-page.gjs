@@ -69,6 +69,11 @@ export default class MapPage extends Component {
 
   @tracked visibleCount = PAGE_SIZE;
 
+  // Su mobile i filtri sono racchiusi in un blocco richiudibile (collapse),
+  // chiuso di default: si aprono con il pulsante "Filtri" sotto il titolo.
+  // Su desktop il pulsante è nascosto via CSS e i filtri sono sempre visibili.
+  @tracked filtersExpanded = false;
+
   observer = null;
 
   // Nuovo risultato dal server (nuovi filtri): la paginazione riparte da
@@ -176,6 +181,31 @@ export default class MapPage extends Component {
       Boolean(this.args.countryName)
     );
   }
+
+  // Quanti filtri sono attivi: mostrato nel pulsante di toggle su mobile,
+  // così l'utente sa che ci sono filtri applicati anche a blocco chiuso.
+  get activeFilterCount() {
+    let count = 0;
+    if (this.args.categoryId) {
+      count++;
+    }
+    if (this.args.selectedTags && this.args.selectedTags.length) {
+      count++;
+    }
+    if (this.args.countryName) {
+      count++;
+    }
+    return count;
+  }
+
+  get filtersToggleLabel() {
+    const base = i18n("discourse_maps.filters.toggle");
+    return this.activeFilterCount ? `${base} (${this.activeFilterCount})` : base;
+  }
+
+  toggleFilters = () => {
+    this.filtersExpanded = !this.filtersExpanded;
+  };
 
   handleCategoryChange = (value) => {
     this.args.onChangeCategory(value ?? null);
@@ -375,8 +405,23 @@ export default class MapPage extends Component {
     <div class="discourse-maps-page" {{didUpdate this.resetPaging @topics}}>
       <h1 class="discourse-maps-page__title">{{i18n "discourse_maps.page_title"}}</h1>
 
-      {{! Filtri: categoria e tag, solo quelli presenti tra i topic elencati. }}
-      <div class="discourse-maps-filters">
+      {{! Toggle dei filtri, visibile solo su mobile (nascosto via CSS su
+          desktop): apre/chiude il blocco dei filtri sottostante. }}
+      <DButton
+        @action={{this.toggleFilters}}
+        @icon={{if this.filtersExpanded "angle-up" "angle-down"}}
+        @translatedLabel={{this.filtersToggleLabel}}
+        aria-expanded={{if this.filtersExpanded "true" "false"}}
+        aria-controls="discourse-maps-filters"
+        class="btn-default discourse-maps-filters-toggle"
+      />
+
+      {{! Filtri: categoria e tag, solo quelli presenti tra i topic elencati.
+          Su mobile "is-collapsed" li nasconde finché non si usa il toggle. }}
+      <div
+        id="discourse-maps-filters"
+        class="discourse-maps-filters {{unless this.filtersExpanded 'is-collapsed'}}"
+      >
         <style>{{this.categoryRowIconStyles}}</style>
 
         <ComboBox

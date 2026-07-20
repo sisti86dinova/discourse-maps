@@ -14,6 +14,7 @@ it:
         all_countries: "Nazioni"
         reset: "Rimuovi filtri"
         new_topic: "Nuovo post"
+        toggle: "Filtri"
       composer:
         button_title: "Aggiungi una posizione alla mappa"
       modal:

@@ -14,6 +14,7 @@ en:
         all_countries: "All countries"
         reset: "Clear filters"
         new_topic: "New topic"
+        toggle: "Filters"
       composer:
         button_title: "Add a location to the map"
       modal:

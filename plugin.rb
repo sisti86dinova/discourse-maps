@@ -27,6 +27,10 @@ register_asset "stylesheets/common/discourse-maps.scss"
 # indipendentemente dal set di icone di default configurato nel sito.
 register_svg_icon "globe"
 
+# Icone del pulsante che apre/chiude i filtri su mobile (pagina /map).
+register_svg_icon "angle-up"
+register_svg_icon "angle-down"
+
 # Permette al composer di inviare il parametro "discourse_maps_location" alla
 # creazione del topic. Lo dichiariamo come :hash perché è un oggetto con più
 # campi (indirizzo + coordinate lat/lng).
