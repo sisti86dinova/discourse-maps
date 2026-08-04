@@ -42,6 +42,13 @@ after_initialize do
 
   add_permitted_post_create_param("discourse_maps_location", :hash)
 
+  # Fa sopravvivere questi parametri nel payload di ReviewableQueuedPost, così
+  # da poterli recuperare in on(:approved_post) quando un post di un utente
+  # non ancora approvato viene messo in coda di moderazione e il post reale
+  # viene creato solo dopo l'ok dello staff (vedi apply_map_metadata sotto).
+  NewPostManager.add_plugin_payload_attribute("discourse_maps_location")
+  NewPostManager.add_plugin_payload_attribute("discourse_maps_from_map")
+
   # Namespace del modulo del plugin.
   module ::DiscourseMaps
     PLUGIN_NAME = "discourse-maps"
@@ -57,6 +64,27 @@ after_initialize do
     # (impostazione `discourse_maps_map_tag_id`), oppure nil se non esiste.
     def self.map_tag
       Tag.find_by(id: SiteSetting.discourse_maps_map_tag_id)
+    end
+
+    # Applica al topic i dati geografici e il tag "mappa", a partire dai
+    # parametri "discourse_maps_location" / "discourse_maps_from_map".
+    # Usato sia alla creazione diretta del post (on :post_created) sia
+    # all'approvazione di un post che era in coda di moderazione (on
+    # :approved_post), perché in quel secondo caso il post viene ricreato da
+    # ReviewableQueuedPost e :post_created non viene emesso.
+    def self.apply_map_metadata(topic, location, from_map)
+      return if location.blank? && from_map.blank?
+
+      if location.present?
+        topic.custom_fields[LOCATION_FIELD] = location
+        topic.save_custom_fields(true)
+      end
+
+      tag = map_tag
+      if tag && topic.tags.exclude?(tag)
+        topic.tags << tag
+        topic.save!
+      end
     end
 
     # Scope di base: topic con tag "mappa", posizione salvata e visibili
@@ -249,28 +277,36 @@ after_initialize do
     # Il parametro può arrivare con chiave simbolo o stringa: gestiamo entrambi.
     location = opts[:discourse_maps_location] || opts["discourse_maps_location"]
     from_map = opts[:discourse_maps_from_map] || opts["discourse_maps_from_map"]
-    next if location.blank? && from_map.blank?
 
-    topic = post.topic
+    # Assegnazione automatica del tag "mappa" (id letto dall'impostazione) e
+    # salvataggio della posizione. Il tag viene assegnato anche senza
+    # posizione quando il topic è stato creato dal pulsante "Nuovo topic"
+    # della pagina /map: il tag group è riservato allo staff, quindi un
+    # utente normale non può assegnarlo da solo tramite il composer (il
+    # selettore lo nasconde e comunque il server lo filtrerebbe) e senza
+    # questo bypass non comparirebbe mai nella lista di /map.
+    ::DiscourseMaps.apply_map_metadata(post.topic, location, from_map)
+  end
 
-    # 1. Salvataggio dei dati geografici nel custom field del topic (se presenti).
-    if location.present?
-      topic.custom_fields[::DiscourseMaps::LOCATION_FIELD] = location
-      topic.save_custom_fields(true)
-    end
+  # --------------------------------------------------------------------------
+  #  Caso utenti non ancora approvati (o comunque soggetti a moderazione dei
+  #  nuovi topic): il post reale NON viene creato subito, ma viene messo in
+  #  coda (ReviewableQueuedPost) e ricreato solo quando lo staff approva.
+  #  In quel momento :post_created non viene emesso (viene passato
+  #  skip_events) e gli opts custom non arrivano comunque, perché
+  #  ReviewableQueuedPost ricostruisce gli opts dal proprio "payload", che di
+  #  default contiene solo raw/title/tags/category. Per questo registriamo i
+  #  nostri parametri come "plugin payload attribute" (sopravvivono nel
+  #  payload) e li applichiamo qui, ad approvazione avvenuta.
+  # --------------------------------------------------------------------------
+  on(:approved_post) do |reviewable, post|
+    next unless post&.is_first_post?
 
-    # 2. Assegnazione automatica del tag "mappa" (id letto dall'impostazione).
-    # Il tag viene assegnato anche senza posizione quando il topic è stato
-    # creato dal pulsante "Nuovo topic" della pagina /map: il tag group è
-    # riservato allo staff, quindi un utente normale non può assegnarlo da
-    # solo tramite il composer (il selettore lo nasconde e comunque il
-    # server lo filtrerebbe) e senza questo bypass non comparirebbe mai
-    # nella lista di /map.
-    tag = ::DiscourseMaps.map_tag
-    if tag && topic.tags.exclude?(tag)
-      topic.tags << tag
-      topic.save!
-    end
+    payload = reviewable.payload || {}
+    location = payload["discourse_maps_location"]
+    from_map = payload["discourse_maps_from_map"]
+
+    ::DiscourseMaps.apply_map_metadata(post.topic, location, from_map)
   end
 
   # --------------------------------------------------------------------------
