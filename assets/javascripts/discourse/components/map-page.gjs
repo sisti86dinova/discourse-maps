@@ -243,8 +243,15 @@ export default class MapPage extends Component {
   }
 
   @action
-  createTopic() {
-    this.composer.openNewTopic();
+  async createTopic() {
+    // Segnaliamo al server che il topic nasce dal pulsante "Nuovo topic"
+    // di /map: il tag "mappa" verrà assegnato comunque, anche se l'utente
+    // non aggiunge una posizione dal composer (vedi on(:post_created) in
+    // plugin.rb). Passare il tag qui via `tags:` non funzionerebbe per gli
+    // utenti non staff: il tag group è riservato allo staff, quindi
+    // `composer.filterTags` lo rimuoverebbe silenziosamente.
+    await this.composer.openNewTopic();
+    this.composer.model.set("discourse_maps_from_map", true);
   }
 
   resetFilters = () => {

@@ -248,15 +248,24 @@ after_initialize do
 
     # Il parametro può arrivare con chiave simbolo o stringa: gestiamo entrambi.
     location = opts[:discourse_maps_location] || opts["discourse_maps_location"]
-    next if location.blank?
+    from_map = opts[:discourse_maps_from_map] || opts["discourse_maps_from_map"]
+    next if location.blank? && from_map.blank?
 
     topic = post.topic
 
-    # 1. Salvataggio dei dati geografici nel custom field del topic.
-    topic.custom_fields[::DiscourseMaps::LOCATION_FIELD] = location
-    topic.save_custom_fields(true)
+    # 1. Salvataggio dei dati geografici nel custom field del topic (se presenti).
+    if location.present?
+      topic.custom_fields[::DiscourseMaps::LOCATION_FIELD] = location
+      topic.save_custom_fields(true)
+    end
 
     # 2. Assegnazione automatica del tag "mappa" (id letto dall'impostazione).
+    # Il tag viene assegnato anche senza posizione quando il topic è stato
+    # creato dal pulsante "Nuovo topic" della pagina /map: il tag group è
+    # riservato allo staff, quindi un utente normale non può assegnarlo da
+    # solo tramite il composer (il selettore lo nasconde e comunque il
+    # server lo filtrerebbe) e senza questo bypass non comparirebbe mai
+    # nella lista di /map.
     tag = ::DiscourseMaps.map_tag
     if tag && topic.tags.exclude?(tag)
       topic.tags << tag

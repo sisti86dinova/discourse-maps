@@ -55,6 +55,12 @@ export default {
         "topic.discourse_maps_location"
       );
 
+      // Invia "discourse_maps_from_map" quando il topic è stato aperto dal
+      // pulsante "Nuovo topic" della pagina /map (vedi map-page.gjs): serve
+      // al server per assegnare comunque il tag "mappa", anche se l'utente
+      // non ha compilato la posizione tramite il modal del composer.
+      api.serializeOnCreate("discourse_maps_from_map");
+
       // --- Pulsante nella toolbar del composer -----------------------------
       api.onToolbarCreate((toolbar) => {
         toolbar.addButton({
