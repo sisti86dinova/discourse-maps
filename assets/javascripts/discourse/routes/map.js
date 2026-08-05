@@ -30,7 +30,7 @@ export default class MapRoute extends DiscourseRoute {
       data.countries = params.countries;
     }
 
-    return ajax("/map.json", { data });
+    return ajax("/map-under-dev.json", { data });
   }
 
   // I filtri sono legati alla querystring, quindi per loro natura

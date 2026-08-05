@@ -362,8 +362,12 @@ after_initialize do
     end
   end
 
-  # Registra la rotta /map (serve sia l'HTML sia /map.json).
-  Discourse::Application.routes.append { get "/map" => "discourse_maps/map#index" }
+  # Registra la rotta /map-under-dev (serve sia l'HTML sia /map-under-dev.json).
+  # Path volutamente non intuitivo: la feature è già stata comunicata al
+  # committente ma non deve essere raggiungibile dagli utenti prima del
+  # rilascio ufficiale (il plugin resta comunque abilitato per continuare lo
+  # sviluppo).
+  Discourse::Application.routes.append { get "/map-under-dev" => "discourse_maps/map#index" }
 end
 
 

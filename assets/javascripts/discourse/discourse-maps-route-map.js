@@ -5,6 +5,6 @@
 // ============================================================================
 
 export default function () {
-  this.route("map", { path: "/map" });
+  this.route("map", { path: "/map-under-dev" });
 }
 
