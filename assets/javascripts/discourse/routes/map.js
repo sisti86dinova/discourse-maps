@@ -5,11 +5,14 @@
 //  relativa posizione, che verranno mostrati sulla mappa e nella lista.
 // ============================================================================
 
+import { service } from "@ember/service";
 import DiscourseRoute from "discourse/routes/discourse";
 import { ajax } from "discourse/lib/ajax";
 import { i18n } from "discourse-i18n";
 
 export default class MapRoute extends DiscourseRoute {
+  @service router;
+
   // I filtri sono query param: quando cambiano, ricarichiamo i dati dal server.
   queryParams = {
     category_id: { refreshModel: true },
@@ -39,7 +42,7 @@ export default class MapRoute extends DiscourseRoute {
 
       if (!params.year && !params.month && !params.day) {
         const today = new Date();
-        return this.replaceWith({
+        return this.router.replaceWith("map", {
           queryParams: {
             year: today.getFullYear(),
             month: today.getMonth() + 1,
