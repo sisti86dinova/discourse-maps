@@ -30,7 +30,7 @@ export default class MapRoute extends DiscourseRoute {
   // pagina.
   dateDefaultApplied = false;
 
-  model(params) {
+  model(params, transition) {
     // Primo ingresso nella pagina in questa visita, senza alcun filtro data
     // esplicito in URL: filtriamo di default sulla data odierna, per evitare
     // di mostrare in una volta sola tutti i topic geolocalizzati
@@ -42,13 +42,21 @@ export default class MapRoute extends DiscourseRoute {
 
       if (!params.year && !params.month && !params.day) {
         const today = new Date();
-        return this.router.replaceWith("map", {
+        // Il redirect va verso la stessa rotta, cambiando solo i query
+        // param: senza l'abort esplicito della transizione in corso, il
+        // router genera un TypeError interno ("Cannot read properties of
+        // undefined (reading 'name')") perché la transizione verso la
+        // rotta corrente non è ancora stata finalizzata quando proviamo a
+        // sostituirla (bug noto di Ember, vedi emberjs/ember.js#18577).
+        transition.abort();
+        this.router.replaceWith("map", {
           queryParams: {
             year: today.getFullYear(),
             month: today.getMonth() + 1,
             day: today.getDate(),
           },
         });
+        return;
       }
     }
 
