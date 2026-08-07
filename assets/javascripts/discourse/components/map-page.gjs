@@ -46,6 +46,7 @@ import { i18n } from "discourse-i18n";
 import DButton from "discourse/components/d-button";
 import icon from "discourse/helpers/d-icon";
 import ComboBox from "discourse/select-kit/components/combo-box";
+import DiscourseMapsDateFilter from "./discourse-maps-date-filter";
 import DiscourseMapsMap from "./discourse-maps-map";
 
 // Quanti topic mostrare per volta nella lista (caricamento a scroll).
@@ -272,17 +273,6 @@ export default class MapPage extends Component {
     }
     const month = Number(raw);
     return this.availableMonths.some((m) => m.id === month) ? month : null;
-  }
-
-  // Il mese ha senso solo con un anno selezionato (vedi plugin.rb, che
-  // altrimenti non avrebbe un anno su cui calcolare i mesi disponibili).
-  get monthDisabled() {
-    return !this.selectedYear;
-  }
-
-  // Il giorno ha senso solo con anno+mese selezionati, stesso motivo di sopra.
-  get dayDisabled() {
-    return !this.selectedMonth;
   }
 
   // Giorni disponibili (dipendono da anno+mese selezionati, vedi plugin.rb).
@@ -604,30 +594,17 @@ export default class MapPage extends Component {
           class="discourse-maps-filters__countries"
         />
 
-        <ComboBox
-          @value={{this.selectedYear}}
-          @content={{this.availableYears}}
-          @onChange={{this.handleYearChange}}
-          @options={{hash none="discourse_maps.filters.all_years"}}
-          class="discourse-maps-filters__year"
-        />
-
-        <ComboBox
-          @value={{this.selectedMonth}}
-          @content={{this.availableMonths}}
-          @onChange={{this.handleMonthChange}}
-          @disabled={{this.monthDisabled}}
-          @options={{hash none="discourse_maps.filters.all_months"}}
-          class="discourse-maps-filters__month"
-        />
-
-        <ComboBox
-          @value={{this.selectedDay}}
-          @content={{this.availableDays}}
-          @onChange={{this.handleDayChange}}
-          @disabled={{this.dayDisabled}}
-          @options={{hash none="discourse_maps.filters.all_days"}}
-          class="discourse-maps-filters__day"
+        <DiscourseMapsDateFilter
+          @year={{this.selectedYear}}
+          @month={{this.selectedMonth}}
+          @day={{this.selectedDay}}
+          @availableYears={{this.availableYears}}
+          @availableMonths={{this.availableMonths}}
+          @availableDays={{this.availableDays}}
+          @onSelectYear={{this.handleYearChange}}
+          @onSelectMonth={{this.handleMonthChange}}
+          @onSelectDay={{this.handleDayChange}}
+          class="discourse-maps-filters__date"
         />
 
         <button
