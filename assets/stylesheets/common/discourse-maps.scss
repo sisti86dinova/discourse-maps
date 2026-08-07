@@ -144,6 +144,15 @@
       }
     }
 
+    // Mese/giorno sono disabilitati finché non è selezionato il livello
+    // superiore della gerarchia (anno per il mese, mese per il giorno):
+    // opacizzati per segnalarlo visivamente, oltre al comportamento nativo
+    // di select-kit (niente click/tastiera) dato da @disabled.
+    .discourse-maps-filters__month.disabled,
+    .discourse-maps-filters__day.disabled {
+      opacity: 0.5;
+    }
+
     // Pulsante "Nuovo topic" (visibile solo ad admin/gruppi abilitati):
     // sempre allineato a destra della barra filtri. Su mobile questa
     // istanza è nascosta: ne resta visibile solo la copia nella riga del

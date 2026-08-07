@@ -274,6 +274,17 @@ export default class MapPage extends Component {
     return this.availableMonths.some((m) => m.id === month) ? month : null;
   }
 
+  // Il mese ha senso solo con un anno selezionato (vedi plugin.rb, che
+  // altrimenti non avrebbe un anno su cui calcolare i mesi disponibili).
+  get monthDisabled() {
+    return !this.selectedYear;
+  }
+
+  // Il giorno ha senso solo con anno+mese selezionati, stesso motivo di sopra.
+  get dayDisabled() {
+    return !this.selectedMonth;
+  }
+
   // Giorni disponibili (dipendono da anno+mese selezionati, vedi plugin.rb).
   get availableDays() {
     return this.args.filters?.days || [];
@@ -605,6 +616,7 @@ export default class MapPage extends Component {
           @value={{this.selectedMonth}}
           @content={{this.availableMonths}}
           @onChange={{this.handleMonthChange}}
+          @disabled={{this.monthDisabled}}
           @options={{hash none="discourse_maps.filters.all_months"}}
           class="discourse-maps-filters__month"
         />
@@ -613,6 +625,7 @@ export default class MapPage extends Component {
           @value={{this.selectedDay}}
           @content={{this.availableDays}}
           @onChange={{this.handleDayChange}}
+          @disabled={{this.dayDisabled}}
           @options={{hash none="discourse_maps.filters.all_days"}}
           class="discourse-maps-filters__day"
         />
