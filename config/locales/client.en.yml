@@ -12,6 +12,9 @@ en:
         all_categories: "All categories"
         all_tags: "All tags"
         all_countries: "All countries"
+        all_years: "Year"
+        all_months: "Month"
+        all_days: "Day"
         reset: "Clear filters"
         new_topic: "New topic"
         toggle: "Filters"
@@ -25,9 +28,13 @@ en:
         fields:
           address: "Address"
           address_placeholder: "e.g. Via Roma 1, 00100 Rome, Italy"
+          start_date: "Start date"
+          end_date: "End date"
         errors:
           generic: "Unable to find the address. Please check the entered data."
           not_found: "No results found for this address."
           empty_address: "Enter an address."
+          missing_dates: "Enter both a start date and an end date."
+          end_before_start: "The end date cannot be earlier than the start date."
 
 

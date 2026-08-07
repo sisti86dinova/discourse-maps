@@ -169,7 +169,10 @@
 
       .discourse-maps-filters__category,
       .discourse-maps-filters__tags,
-      .discourse-maps-filters__countries {
+      .discourse-maps-filters__countries,
+      .discourse-maps-filters__year,
+      .discourse-maps-filters__month,
+      .discourse-maps-filters__day {
         min-width: 0;
         flex: 1 1 auto;
       }
@@ -318,6 +321,12 @@
     font-weight: var(--topic-title-font-weight--visited);
   }
 
+  &__date {
+    margin-top: 4px;
+    color: var(--primary-medium);
+    font-size: var(--font-down-1);
+  }
+
   &__meta {
     display: flex;
     flex-wrap: wrap;
@@ -385,6 +394,15 @@
     }
   }
 
+  &__dates {
+    display: flex;
+    gap: 0.75em;
+
+    > div {
+      flex: 1 1 0;
+    }
+  }
+
   &__error {
     margin-top: 0.75em;
   }
@@ -392,4 +410,25 @@
 
 .leaflet-popup-content {
   margin: 12px 18px 12px 12px;
+}
+
+// Pulsante "geolocalizza" nella toolbar del composer: deve comparire solo
+// nell'editor usato per creare un nuovo post dalla pagina /map-under-dev,
+// non negli editor del resto del sito. Il body riceve la classe
+// "discourse-maps-page-active" solo mentre si è su quella pagina (vedi
+// api.onPageChange nell'initializer); ".discourse-maps-location" copre anche
+// l'eventuale classe generata di default da Discourse a partire dall'id del
+// pulsante, oltre alla classe esplicita assegnata in fase di registrazione.
+.d-editor-button-bar {
+  .discourse-maps-location-btn,
+  .discourse-maps-location {
+    display: none !important;
+  }
+}
+
+body.discourse-maps-page-active .d-editor-button-bar {
+  .discourse-maps-location-btn,
+  .discourse-maps-location {
+    display: inline-flex !important;
+  }
 }

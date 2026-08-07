@@ -12,6 +12,9 @@ it:
         all_categories: "Categorie"
         all_tags: "Tags"
         all_countries: "Nazioni"
+        all_years: "Anno"
+        all_months: "Mese"
+        all_days: "Giorno"
         reset: "Rimuovi filtri"
         new_topic: "Nuovo post"
         toggle: "Filtri"
@@ -25,9 +28,13 @@ it:
         fields:
           address: "Indirizzo"
           address_placeholder: "es. Via Roma 1, 00100 Roma"
+          start_date: "Data di inizio"
+          end_date: "Data di fine"
         errors:
           generic: "Impossibile trovare l'indirizzo. Controlla i dati inseriti."
           not_found: "Nessun risultato trovato per questo indirizzo."
           empty_address: "Inserisci un indirizzo."
+          missing_dates: "Inserisci sia la data di inizio sia quella di fine."
+          end_before_start: "La data di fine non può essere precedente a quella di inizio."
 
 

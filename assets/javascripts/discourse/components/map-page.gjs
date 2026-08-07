@@ -20,9 +20,16 @@
 //    @categoryId      - id della categoria attualmente selezionata (filtro).
 //    @selectedTags    - array dei tag attualmente selezionati (filtro).
 //    @countryName     - paese attualmente selezionato (filtro).
+//    @year/@month/@day - periodo attualmente selezionato (filtro, gerarchico:
+//                       il mese ha senso solo con un anno, il giorno solo con
+//                       anno+mese).
 //    @onChangeCategory - callback(categoryId) al cambio del filtro categoria.
 //    @onChangeTags     - callback(tags[]) al cambio del filtro tag.
 //    @onChangeCountry  - callback(countryName) al cambio del filtro paese.
+//    @onChangeYear/@onChangeMonth/@onChangeDay - callback(value) al cambio
+//                       del rispettivo livello del filtro periodo.
+//    @onResetDate      - callback() che riporta il filtro periodo alla data
+//                       odierna (usata da "Rimuovi filtri").
 // ============================================================================
 
 import Component from "@glimmer/component";
@@ -178,12 +185,15 @@ export default class MapPage extends Component {
     return (
       Boolean(this.args.categoryId) ||
       Boolean(this.args.selectedTags && this.args.selectedTags.length) ||
-      Boolean(this.args.countryName)
+      Boolean(this.args.countryName) ||
+      Boolean(this.args.year)
     );
   }
 
   // Quanti filtri sono attivi: mostrato nel pulsante di toggle su mobile,
   // così l'utente sa che ci sono filtri applicati anche a blocco chiuso.
+  // Il periodo (anno/mese/giorno) conta come un solo filtro, indipendentemente
+  // dal suo livello di dettaglio.
   get activeFilterCount() {
     let count = 0;
     if (this.args.categoryId) {
@@ -193,6 +203,9 @@ export default class MapPage extends Component {
       count++;
     }
     if (this.args.countryName) {
+      count++;
+    }
+    if (this.args.year) {
       count++;
     }
     return count;
@@ -217,6 +230,74 @@ export default class MapPage extends Component {
 
   handleCountryChange = (value) => {
     this.args.onChangeCountry(value ?? null);
+  };
+
+  // Anni disponibili nel filtro periodo: opzioni calcolate dal server sui
+  // topic mostrabili con i filtri categoria/tag/paese già applicati.
+  get availableYears() {
+    return this.args.filters?.years || [];
+  }
+
+  // @year arriva dalla query string (sempre stringa): stesso trattamento di
+  // categoryIdValue, per far combaciare il valore col tipo numerico atteso
+  // dal ComboBox.
+  get selectedYear() {
+    const raw = this.args.year;
+    if (raw === null || raw === undefined || raw === "") {
+      return null;
+    }
+    const year = Number(raw);
+    return this.availableYears.some((y) => y.id === year) ? year : null;
+  }
+
+  // Mesi disponibili (dipendono dall'anno selezionato, vedi plugin.rb): il
+  // nome del mese è localizzato lato client con Intl, il server restituisce
+  // solo il numero (1-12).
+  get availableMonths() {
+    const months = this.args.filters?.months || [];
+    const formatter = new Intl.DateTimeFormat(
+      document.documentElement.lang || undefined,
+      { month: "long" }
+    );
+    return months.map((m) => ({
+      id: m.id,
+      name: formatter.format(new Date(2000, m.id - 1, 1)),
+    }));
+  }
+
+  get selectedMonth() {
+    const raw = this.args.month;
+    if (raw === null || raw === undefined || raw === "") {
+      return null;
+    }
+    const month = Number(raw);
+    return this.availableMonths.some((m) => m.id === month) ? month : null;
+  }
+
+  // Giorni disponibili (dipendono da anno+mese selezionati, vedi plugin.rb).
+  get availableDays() {
+    return this.args.filters?.days || [];
+  }
+
+  get selectedDay() {
+    const raw = this.args.day;
+    if (raw === null || raw === undefined || raw === "") {
+      return null;
+    }
+    const day = Number(raw);
+    return this.availableDays.some((d) => d.id === day) ? day : null;
+  }
+
+  handleYearChange = (value) => {
+    this.args.onChangeYear(value ?? null);
+  };
+
+  handleMonthChange = (value) => {
+    this.args.onChangeMonth(value ?? null);
+  };
+
+  handleDayChange = (value) => {
+    this.args.onChangeDay(value ?? null);
   };
 
   // Il pulsante "Nuovo topic" è visibile solo agli admin e ai membri dei
@@ -254,10 +335,15 @@ export default class MapPage extends Component {
     this.composer.model.set("discourse_maps_from_map", true);
   }
 
+  // Categoria/tag/paese vengono azzerati (nessun filtro), il periodo invece
+  // torna alla data odierna invece di essere rimosso del tutto: altrimenti,
+  // con potenzialmente migliaia di topic geolocalizzati a regime, il pulsante
+  // "Rimuovi filtri" mostrerebbe di colpo tutti i pin di sempre.
   resetFilters = () => {
     this.args.onChangeCategory(null);
     this.args.onChangeTags([]);
     this.args.onChangeCountry(null);
+    this.args.onResetDate();
   };
 
   // Solo i topic che hanno una posizione valida (per mappa e lista). La
@@ -267,6 +353,36 @@ export default class MapPage extends Component {
     return (this.args.topics || []).filter(
       (t) => t.location && t.location.lat && t.location.lng
     );
+  }
+
+  // Formatta il periodo (inizio/fine) di un topic in un'unica etichetta
+  // leggibile, localizzata: solo la data di inizio se coincide con quella di
+  // fine (evento di un giorno), altrimenti "inizio – fine". Le date sono
+  // salvate come stringhe "YYYY-MM-DD": costruiamo il Date esplicitando
+  // anno/mese/giorno invece di parsare la stringa, per evitare l'off-by-one
+  // dovuto al fuso orario che `new Date("YYYY-MM-DD")` applicherebbe
+  // (interpretata come UTC mezzanotte, può scadere al giorno prima nel fuso
+  // locale).
+  formatDateRange(location) {
+    if (!location?.start_date || !location?.end_date) {
+      return null;
+    }
+
+    const formatter = new Intl.DateTimeFormat(
+      document.documentElement.lang || undefined,
+      { year: "numeric", month: "short", day: "numeric" }
+    );
+    const toDate = (value) => {
+      const [year, month, day] = value.split("-").map(Number);
+      return new Date(year, month - 1, day);
+    };
+
+    const start = formatter.format(toDate(location.start_date));
+    if (location.start_date === location.end_date) {
+      return start;
+    }
+    const end = formatter.format(toDate(location.end_date));
+    return `${start} – ${end}`;
   }
 
   // Marker per la mappa, con popup HTML (titolo + categoria + tag, entrambi
@@ -285,6 +401,11 @@ export default class MapPage extends Component {
         `</strong>`;
 
       const lines = [];
+      const dateRange = this.formatDateRange(topic.location);
+      if (dateRange) {
+        lines.push(dateRange);
+      }
+
       if (category) {
         lines.push(
           `${i18n("discourse_maps.popup.category")} ` +
@@ -340,6 +461,7 @@ export default class MapPage extends Component {
         })),
         commentsCount: Math.max((topic.posts_count || 1) - 1, 0),
         activityDate: this.formatActivityDate(topic),
+        dateRange: this.formatDateRange(topic.location),
       };
     });
   }
@@ -471,6 +593,30 @@ export default class MapPage extends Component {
           class="discourse-maps-filters__countries"
         />
 
+        <ComboBox
+          @value={{this.selectedYear}}
+          @content={{this.availableYears}}
+          @onChange={{this.handleYearChange}}
+          @options={{hash none="discourse_maps.filters.all_years"}}
+          class="discourse-maps-filters__year"
+        />
+
+        <ComboBox
+          @value={{this.selectedMonth}}
+          @content={{this.availableMonths}}
+          @onChange={{this.handleMonthChange}}
+          @options={{hash none="discourse_maps.filters.all_months"}}
+          class="discourse-maps-filters__month"
+        />
+
+        <ComboBox
+          @value={{this.selectedDay}}
+          @content={{this.availableDays}}
+          @onChange={{this.handleDayChange}}
+          @options={{hash none="discourse_maps.filters.all_days"}}
+          class="discourse-maps-filters__day"
+        />
+
         <button
           type="button"
           class="btn btn-icon-text d-page-action-button btn-small btn-danger discourse-maps-filters__reset
@@ -514,6 +660,10 @@ export default class MapPage extends Component {
               <a href={{row.topic.url}} class="discourse-maps-list__title">
                 {{row.topic.title}}
               </a>
+
+              {{#if row.dateRange}}
+                <div class="discourse-maps-list__date">{{row.dateRange}}</div>
+              {{/if}}
 
               <div class="discourse-maps-list__meta">
                 {{#if row.category}}

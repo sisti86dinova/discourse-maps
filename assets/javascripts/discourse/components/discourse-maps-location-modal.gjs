@@ -26,6 +26,12 @@ export default class DiscourseMapsLocationModal extends Component {
   // già una posizione).
   @tracked address = "";
 
+  // Data di inizio/fine dell'evento geolocalizzato (formato "YYYY-MM-DD",
+  // stesso formato restituito dagli <input type="date">). Obbligatorie: ogni
+  // post con una posizione deve avere anche un periodo di riferimento.
+  @tracked startDate = "";
+  @tracked endDate = "";
+
   // Stato dell'operazione di geocoding.
   @tracked loading = false;
   @tracked errorKey = null;
@@ -37,6 +43,8 @@ export default class DiscourseMapsLocationModal extends Component {
     const existing = this.composer?.model?.discourse_maps_location;
     if (existing) {
       this.address = existing.address ?? existing.display_name ?? "";
+      this.startDate = existing.start_date ?? "";
+      this.endDate = existing.end_date ?? "";
     }
   }
 
@@ -50,23 +58,49 @@ export default class DiscourseMapsLocationModal extends Component {
     this.address = event.target.value;
   }
 
+  @action
+  updateStartDate(event) {
+    this.startDate = event.target.value;
+  }
+
+  @action
+  updateEndDate(event) {
+    this.endDate = event.target.value;
+  }
+
   // Esegue il geocoding e salva la posizione sul modello del composer.
   @action
   async save() {
     this.errorKey = null;
+
+    // Le date sono obbligatorie quanto l'indirizzo: senza, il topic non
+    // potrebbe mai comparire nei filtri per data della pagina /map-under-dev.
+    if (!this.startDate || !this.endDate) {
+      this.errorKey = "missing_dates";
+      return;
+    }
+
+    if (this.endDate < this.startDate) {
+      this.errorKey = "end_before_start";
+      return;
+    }
+
     this.loading = true;
 
     try {
       const result = await geocodeAddress(this.address, this.siteSettings);
 
       // Salviamo l'indirizzo digitato + il risultato del geocoding
-      // (coordinate, indirizzo formattato, paese) sul modello del composer.
+      // (coordinate, indirizzo formattato, paese) + il periodo di
+      // riferimento sul modello del composer.
       this.composer.model.set("discourse_maps_location", {
         address: this.address,
         lat: result.lat,
         lng: result.lng,
         display_name: result.display_name,
         country: result.country,
+        start_date: this.startDate,
+        end_date: this.endDate,
       });
 
       this.args.closeModal();
@@ -104,6 +138,26 @@ export default class DiscourseMapsLocationModal extends Component {
               value={{this.address}}
               {{on "input" this.updateAddress}}
             />
+          </div>
+
+          <div class="control-group discourse-maps-form__dates">
+            <div>
+              <label>{{i18n "discourse_maps.modal.fields.start_date"}}</label>
+              <input
+                type="date"
+                value={{this.startDate}}
+                {{on "input" this.updateStartDate}}
+              />
+            </div>
+
+            <div>
+              <label>{{i18n "discourse_maps.modal.fields.end_date"}}</label>
+              <input
+                type="date"
+                value={{this.endDate}}
+                {{on "input" this.updateEndDate}}
+              />
+            </div>
           </div>
 
           {{#if this.errorMessage}}

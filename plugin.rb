@@ -54,10 +54,12 @@ after_initialize do
     PLUGIN_NAME = "discourse-maps"
 
     # Nome del campo custom del topic in cui salviamo i dati geografici.
-    # Contiene: { address, lat, lng, display_name, country }. "address" è
-    # l'indirizzo digitato dall'utente, gli altri campi sono il risultato del
-    # geocoding (il paese arriva già "interpretato" dal provider, non digitato
-    # a mano, per evitare grafie diverse per lo stesso paese).
+    # Contiene: { address, lat, lng, display_name, country, start_date,
+    # end_date }. "address" è l'indirizzo digitato dall'utente, gli altri
+    # campi di geocoding sono il risultato del provider (il paese arriva già
+    # "interpretato", non digitato a mano, per evitare grafie diverse per lo
+    # stesso paese). start_date/end_date ("YYYY-MM-DD") sono il periodo di
+    # riferimento del topic, anch'esse digitate dall'utente nel modal.
     LOCATION_FIELD = "discourse_maps_location"
 
     # Restituisce il tag "mappa" configurato nel pannello admin
@@ -157,6 +159,150 @@ after_initialize do
       nil
     end
 
+    # Estrae il periodo (data inizio/fine) dal custom field JSON. Restituisce
+    # nil se il valore non è presente/valido o se manca una delle due date:
+    # sono obbligatorie entrambe alla creazione, ma i topic salvati prima
+    # dell'introduzione di questa feature non le hanno, e semplicemente non
+    # compariranno mai nei filtri per data (restano visibili senza filtro).
+    def self.parse_date_range(raw_value)
+      return nil if raw_value.blank?
+
+      data = JSON.parse(raw_value)
+      start_date = data["start_date"]
+      end_date = data["end_date"]
+      return nil if start_date.blank? || end_date.blank?
+
+      [Date.parse(start_date), Date.parse(end_date)]
+    rescue JSON::ParserError, ArgumentError, TypeError
+      nil
+    end
+
+    # Valida il periodo (inizio/fine) di una posizione così come arriva dal
+    # composer (hash con chiavi simbolo o stringa, non ancora serializzato in
+    # JSON): entrambe le date devono essere presenti e la fine non deve
+    # precedere l'inizio. Usato per il controllo server-side alla creazione
+    # del post (vedi NewPostManager.add_handler più sotto), a garanzia
+    # dell'invariante anche se il client non validasse correttamente (bug,
+    # chiamata diretta alle API, ecc.).
+    def self.valid_location_dates?(location)
+      start_date = location[:start_date] || location["start_date"]
+      end_date = location[:end_date] || location["end_date"]
+      return false if start_date.blank? || end_date.blank?
+
+      Date.parse(start_date.to_s) <= Date.parse(end_date.to_s)
+    rescue ArgumentError, TypeError
+      false
+    end
+
+    # Converte i parametri di filtro anno/mese/giorno (eventualmente parziali)
+    # nell'intervallo di date corrispondente, usato per il confronto "overlap"
+    # con il periodo di ciascun topic. nil se l'anno non è indicato (nessun
+    # filtro per data) o se la combinazione non è una data valida.
+    def self.date_filter_range(year, month, day)
+      return nil if year.blank?
+
+      year = year.to_i
+
+      if month.present?
+        month = month.to_i
+
+        if day.present?
+          date = Date.new(year, month, day.to_i)
+          [date, date]
+        else
+          start = Date.new(year, month, 1)
+          [start, start.end_of_month]
+        end
+      else
+        [Date.new(year, 1, 1), Date.new(year, 12, 31)]
+      end
+    rescue ArgumentError
+      nil
+    end
+
+    # Periodi (coppie [inizio, fine]) dei topic dello scope indicato, con
+    # periodo valido. Base comune per il calcolo delle opzioni anno/mese/giorno.
+    def self.date_ranges_for_scope(scope)
+      TopicCustomField
+        .where(topic_id: scope.distinct.pluck("topics.id"), name: LOCATION_FIELD)
+        .pluck(:value)
+        .map { |value| parse_date_range(value) }
+        .compact
+    end
+
+    # Filtra uno scope per periodo: il topic deve avere un periodo che si
+    # sovrappone (overlap) all'intervallo [filter_start, filter_end] indicato.
+    def self.filter_by_date_range(scope, filter_start, filter_end)
+      scope.where(id: topic_ids_matching_date_range(scope, filter_start, filter_end))
+    end
+
+    def self.topic_ids_matching_date_range(scope, filter_start, filter_end)
+      TopicCustomField
+        .where(topic_id: scope.distinct.pluck("topics.id"), name: LOCATION_FIELD)
+        .pluck(:topic_id, :value)
+        .select { |_, value|
+          range = parse_date_range(value)
+          range && range[0] <= filter_end && range[1] >= filter_start
+        }
+        .map(&:first)
+    end
+
+    # Anni disponibili nello scope indicato: un topic il cui periodo attraversa
+    # più anni compare in ognuno di essi (coerente con la logica "overlap").
+    def self.years_for_scope(scope)
+      years =
+        date_ranges_for_scope(scope)
+          .flat_map { |start_date, end_date| (start_date.year..end_date.year).to_a }
+          .uniq
+          .sort
+
+      years.map { |year| { id: year, name: year.to_s } }
+    end
+
+    # Mesi disponibili nello scope indicato per l'anno selezionato: ogni
+    # periodo viene "ritagliato" sui confini dell'anno prima di estrarne i
+    # mesi, così un topic che attraversa più anni contribuisce solo con i mesi
+    # effettivamente ricadenti in quell'anno.
+    def self.months_for_scope(scope, year)
+      year_start = Date.new(year, 1, 1)
+      year_end = Date.new(year, 12, 31)
+
+      months =
+        date_ranges_for_scope(scope)
+          .flat_map { |start_date, end_date|
+            clipped_start = [start_date, year_start].max
+            clipped_end = [end_date, year_end].min
+            next [] if clipped_start > clipped_end
+
+            (clipped_start.month..clipped_end.month).to_a
+          }
+          .uniq
+          .sort
+
+      months.map { |month| { id: month, name: month.to_s } }
+    end
+
+    # Giorni disponibili nello scope indicato per anno/mese selezionati: stessa
+    # logica di ritaglio dei mesi, applicata ai confini del mese.
+    def self.days_for_scope(scope, year, month)
+      month_start = Date.new(year, month, 1)
+      month_end = month_start.end_of_month
+
+      days =
+        date_ranges_for_scope(scope)
+          .flat_map { |start_date, end_date|
+            clipped_start = [start_date, month_start].max
+            clipped_end = [end_date, month_end].min
+            next [] if clipped_start > clipped_end
+
+            (clipped_start.day..clipped_end.day).to_a
+          }
+          .uniq
+          .sort
+
+      days.map { |day| { id: day, name: day.to_s } }
+    end
+
     # Raccoglie i topic da mostrare nella pagina /map, ordinati per data di
     # creazione decrescente. Rispetta i permessi dell'utente (guardian) e
     # restituisce solo i dati necessari a mappa e lista.
@@ -166,8 +312,11 @@ after_initialize do
     #   - tag_names     : mostra solo i topic che hanno TUTTI i tag indicati
     #                     (il vincolo del tag "mappa" resta sempre applicato);
     #   - country_names : mostra solo i topic il cui indirizzo è in uno dei
-    #                     paesi indicati.
-    def self.map_topics(guardian, category_id: nil, tag_names: [], country_names: [])
+    #                     paesi indicati;
+    #   - year/month/day: mostra solo i topic il cui periodo (inizio/fine) si
+    #                     sovrappone al periodo indicato (anno, anno+mese o
+    #                     data esatta a seconda di quali sono presenti).
+    def self.map_topics(guardian, category_id: nil, tag_names: [], country_names: [], year: nil, month: nil, day: nil)
       base = base_map_scope(guardian)
       return [] unless base
 
@@ -181,6 +330,10 @@ after_initialize do
 
       # Filtro per paese.
       scope = filter_by_countries(scope, country_names) if country_names.present?
+
+      # Filtro per periodo.
+      date_range = date_filter_range(year, month, day)
+      scope = filter_by_date_range(scope, *date_range) if date_range
 
       topics = scope.includes(:tags).distinct.order(created_at: :desc).to_a
 
@@ -220,27 +373,33 @@ after_initialize do
       end
     end
 
-    # Opzioni disponibili per i filtri categoria/tag/paese: incrociate tra
-    # loro (AND), così che scegliere un filtro aggiorni le opzioni degli
-    # altri due mostrando solo quelle che non porterebbero a zero risultati
-    # con i filtri già impostati.
-    def self.map_filter_options(guardian, category_id: nil, tag_names: [], country_names: [])
+    # Opzioni disponibili per i filtri categoria/tag/paese/periodo: incrociate
+    # tra loro (AND), così che scegliere un filtro aggiorni le opzioni degli
+    # altri mostrando solo quelle che non porterebbero a zero risultati con i
+    # filtri già impostati. Anno/mese/giorno hanno in più una gerarchia tra
+    # loro (il mese dipende dall'anno scelto, il giorno da anno+mese): le
+    # opzioni di un livello più specifico sono calcolate solo se il livello
+    # superiore è già selezionato.
+    def self.map_filter_options(guardian, category_id: nil, tag_names: [], country_names: [], year: nil, month: nil, day: nil)
       base = base_map_scope(guardian)
-      return { category_ids: [], tags: [], countries: [] } unless base
+      return { category_ids: [], tags: [], countries: [], years: [], months: [], days: [] } unless base
 
       scope = base[:scope]
       tag = base[:tag]
+      date_range = date_filter_range(year, month, day)
 
-      # Categorie disponibili: rispettano i filtri tag e paese già impostati.
+      # Categorie disponibili: rispettano i filtri tag, paese e periodo già impostati.
       scope_for_categories = scope
       scope_for_categories = filter_by_tags(scope_for_categories, tag_names) if tag_names.present?
       scope_for_categories = filter_by_countries(scope_for_categories, country_names) if country_names.present?
+      scope_for_categories = filter_by_date_range(scope_for_categories, *date_range) if date_range
       category_ids = scope_for_categories.distinct.pluck(:category_id).compact
 
-      # Tag disponibili: rispettano i filtri categoria e paese già impostati.
+      # Tag disponibili: rispettano i filtri categoria, paese e periodo già impostati.
       scope_for_tags = scope
       scope_for_tags = scope_for_tags.where(category_id: category_id) if category_id.present?
       scope_for_tags = filter_by_countries(scope_for_tags, country_names) if country_names.present?
+      scope_for_tags = filter_by_date_range(scope_for_tags, *date_range) if date_range
 
       tag_ids =
         TopicTag
@@ -251,19 +410,52 @@ after_initialize do
 
       tags = Tag.where(id: tag_ids).order(:name).pluck(:id, :name).map { |id, name| { id: id, name: name } }
 
-      # Paesi disponibili: rispettano i filtri categoria e tag già impostati.
+      # Paesi disponibili: rispettano i filtri categoria, tag e periodo già impostati.
       scope_for_countries = scope
       scope_for_countries = scope_for_countries.where(category_id: category_id) if category_id.present?
       scope_for_countries = filter_by_tags(scope_for_countries, tag_names) if tag_names.present?
+      scope_for_countries = filter_by_date_range(scope_for_countries, *date_range) if date_range
       countries = countries_for_scope(scope_for_countries)
 
-      { category_ids: category_ids, tags: tags, countries: countries }
+      # Anni/mesi/giorni disponibili: rispettano i filtri categoria/tag/paese
+      # già impostati (non il periodo stesso, che è gerarchico tra i tre).
+      scope_for_dates = scope
+      scope_for_dates = scope_for_dates.where(category_id: category_id) if category_id.present?
+      scope_for_dates = filter_by_tags(scope_for_dates, tag_names) if tag_names.present?
+      scope_for_dates = filter_by_countries(scope_for_dates, country_names) if country_names.present?
+
+      years = years_for_scope(scope_for_dates)
+      months = year.present? ? months_for_scope(scope_for_dates, year.to_i) : []
+      days = (year.present? && month.present?) ? days_for_scope(scope_for_dates, year.to_i, month.to_i) : []
+
+      { category_ids: category_ids, tags: tags, countries: countries, years: years, months: months, days: days }
     end
   end
 
   # Registra il tipo del campo custom come JSON: in lettura otterremo un Hash,
   # in scrittura verrà serializzato automaticamente in JSON.
   Topic.register_custom_field_type(::DiscourseMaps::LOCATION_FIELD, :json)
+
+  # --------------------------------------------------------------------------
+  #  Verifica server-side, alla creazione del post: un topic geolocalizzato
+  #  deve avere sia data di inizio sia data di fine (vedi
+  #  DiscourseMaps.valid_location_dates?). Il modal del composer valida già
+  #  questo vincolo lato client, ma senza un controllo qui un client diverso
+  #  (bug, chiamata diretta alle API) potrebbe comunque creare un topic con
+  #  posizione ma senza periodo, che non comparirebbe mai nei filtri per data
+  #  di /map-under-dev. Si applica solo alla creazione di un nuovo topic
+  #  (manager.args[:topic_id] assente): la posizione/il periodo riguardano
+  #  solo il primo post, come la posizione stessa.
+  # --------------------------------------------------------------------------
+  NewPostManager.add_handler do |manager|
+    location = manager.args[:discourse_maps_location] || manager.args["discourse_maps_location"]
+
+    if manager.args[:topic_id].blank? && location.present? && !::DiscourseMaps.valid_location_dates?(location)
+      next manager.create_error_result(I18n.t("discourse_maps.errors.missing_dates"))
+    end
+
+    nil
+  end
 
   # --------------------------------------------------------------------------
   #  Alla creazione del primo post di un topic:
@@ -347,6 +539,9 @@ after_initialize do
               category_id: params[:category_id],
               tag_names: tag_names,
               country_names: country_names,
+              year: params[:year],
+              month: params[:month],
+              day: params[:day],
             )
           filters =
             ::DiscourseMaps.map_filter_options(
@@ -354,6 +549,9 @@ after_initialize do
               category_id: params[:category_id],
               tag_names: tag_names,
               country_names: country_names,
+              year: params[:year],
+              month: params[:month],
+              day: params[:day],
             )
 
           render json: { topics: topics, filters: filters }

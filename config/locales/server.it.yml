@@ -1,4 +1,7 @@
 it:
+  discourse_maps:
+    errors:
+      missing_dates: "Per geolocalizzare un post è necessario indicare sia la data di inizio sia quella di fine."
   site_settings:
     discourse_maps_enabled: "Abilita il plugin Discourse Maps."
     discourse_maps_map_tag_id: "ID del tag assegnato automaticamente ai post che usano la mappa (default: 295)."

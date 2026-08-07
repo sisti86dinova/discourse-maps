@@ -37,6 +37,19 @@ export default {
         document.head.appendChild(style);
       }
 
+      // --- Icona di geolocalizzazione visibile solo su /map-under-dev ------
+      // Il pulsante della toolbar (sotto) è globale: comparirebbe in
+      // qualunque editor del sito. Aggiungiamo/rimuoviamo una classe sul
+      // <body> ad ogni cambio pagina, così il CSS (discourse-maps.scss) può
+      // nascondere il pulsante ovunque tranne quando questa classe è
+      // presente, senza dover distinguere dove il composer è stato aperto.
+      api.onPageChange((url) => {
+        document.body.classList.toggle(
+          "discourse-maps-page-active",
+          url.startsWith("/map-under-dev")
+        );
+      });
+
       // --- Link alla pagina /map nella sidebar -----------------------------
       api.addCommunitySectionLink({
         name: "discourse-maps",
@@ -68,6 +81,11 @@ export default {
           group: "extras",
           icon: "location-dot",
           title: "discourse_maps.composer.button_title",
+          // Classe esplicita usata dal CSS per nascondere il pulsante fuori
+          // da /map-under-dev (vedi api.onPageChange sopra), invece di fare
+          // affidamento sulla classe che Discourse genera di default per
+          // l'id del pulsante.
+          className: "discourse-maps-location-btn",
           action: () => {
             const modal = api.container.lookup("service:modal");
             modal.show(DiscourseMapsLocationModal);
