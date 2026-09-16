@@ -48,6 +48,7 @@ import icon from "discourse/helpers/d-icon";
 import ComboBox from "discourse/select-kit/components/combo-box";
 import DiscourseMapsDateFilter from "./discourse-maps-date-filter";
 import DiscourseMapsMap from "./discourse-maps-map";
+import formatDateRange from "../lib/discourse-maps-date-range";
 
 // Quanti topic mostrare per volta nella lista (caricamento a scroll).
 const PAGE_SIZE = 10;
@@ -356,36 +357,6 @@ export default class MapPage extends Component {
     );
   }
 
-  // Formatta il periodo (inizio/fine) di un topic in un'unica etichetta
-  // leggibile, localizzata: solo la data di inizio se coincide con quella di
-  // fine (evento di un giorno), altrimenti "inizio – fine". Le date sono
-  // salvate come stringhe "YYYY-MM-DD": costruiamo il Date esplicitando
-  // anno/mese/giorno invece di parsare la stringa, per evitare l'off-by-one
-  // dovuto al fuso orario che `new Date("YYYY-MM-DD")` applicherebbe
-  // (interpretata come UTC mezzanotte, può scadere al giorno prima nel fuso
-  // locale).
-  formatDateRange(location) {
-    if (!location?.start_date || !location?.end_date) {
-      return null;
-    }
-
-    const formatter = new Intl.DateTimeFormat(
-      document.documentElement.lang || undefined,
-      { year: "numeric", month: "short", day: "numeric" }
-    );
-    const toDate = (value) => {
-      const [year, month, day] = value.split("-").map(Number);
-      return new Date(year, month - 1, day);
-    };
-
-    const start = formatter.format(toDate(location.start_date));
-    if (location.start_date === location.end_date) {
-      return start;
-    }
-    const end = formatter.format(toDate(location.end_date));
-    return `${start} – ${end}`;
-  }
-
   // Marker per la mappa, con popup HTML (titolo + categoria + tag, entrambi
   // cliccabili). Il titolo ha una classe dedicata (discourse-maps-popup__title)
   // per poterlo stilizzare separatamente dal resto del contenuto del popup.
@@ -402,7 +373,7 @@ export default class MapPage extends Component {
         `</strong>`;
 
       const lines = [];
-      const dateRange = this.formatDateRange(topic.location);
+      const dateRange = formatDateRange(topic.location);
       if (dateRange) {
         lines.push(dateRange);
       }
@@ -462,7 +433,7 @@ export default class MapPage extends Component {
         })),
         commentsCount: Math.max((topic.posts_count || 1) - 1, 0),
         activityDate: this.formatActivityDate(topic),
-        dateRange: this.formatDateRange(topic.location),
+        dateRange: formatDateRange(topic.location),
       };
     });
   }

@@ -65,6 +65,13 @@
   margin: 0 0 1.5em;
 }
 
+// Periodo (data inizio/fine) mostrato in title-wrapper, prima della categoria.
+.discourse-maps-topic-dates {
+  margin-bottom: 0.5em;
+  color: var(--primary-medium);
+  font-size: var(--font-down-1);
+}
+
 // Mappa statica del topic: una sola immagine (nessun SDK caricato) con un
 // pin SVG nostro sovrapposto via CSS, sempre centrato (il punto salvato è
 // per definizione il centro della mappa, quindi non serve calcolare alcuna
@@ -323,10 +330,6 @@
       background: var(--tertiary);
       border-color: var(--tertiary);
       color: var(--secondary);
-    }
-
-    &--any {
-      flex: 1 1 100%;
     }
   }
 

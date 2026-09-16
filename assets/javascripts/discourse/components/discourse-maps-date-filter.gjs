@@ -189,19 +189,9 @@ export default class DiscourseMapsDateFilter extends Component {
     this.activeStep = "month";
   };
 
-  clearYear = () => {
-    this.args.onSelectYear(null);
-    this.activeStep = "year";
-  };
-
   selectMonth = (monthId) => {
     this.args.onSelectMonth(monthId);
     this.activeStep = "day";
-  };
-
-  clearMonth = () => {
-    this.args.onSelectMonth(null);
-    this.activeStep = "month";
   };
 
   // Selezionare un giorno è l'azione più specifica possibile: chiudiamo il
@@ -209,11 +199,6 @@ export default class DiscourseMapsDateFilter extends Component {
   selectDay = (day) => {
     this.args.onSelectDay(day);
     this.close();
-  };
-
-  clearDay = () => {
-    this.args.onSelectDay(null);
-    this.activeStep = "day";
   };
 
   <template>
@@ -281,14 +266,6 @@ export default class DiscourseMapsDateFilter extends Component {
           <div class="discourse-maps-date-filter__body">
             {{#if this.isYearStep}}
               <div class="discourse-maps-date-filter__grid">
-                <button
-                  type="button"
-                  class="discourse-maps-date-filter__chip discourse-maps-date-filter__chip--any
-                    {{unless @year 'active'}}"
-                  {{on "click" this.clearYear}}
-                >
-                  {{i18n "discourse_maps.filters.date_any_year"}}
-                </button>
                 {{#each @availableYears as |year|}}
                   <button
                     type="button"
@@ -302,14 +279,6 @@ export default class DiscourseMapsDateFilter extends Component {
               </div>
             {{else if this.isMonthStep}}
               <div class="discourse-maps-date-filter__grid">
-                <button
-                  type="button"
-                  class="discourse-maps-date-filter__chip discourse-maps-date-filter__chip--any
-                    {{unless @month 'active'}}"
-                  {{on "click" this.clearMonth}}
-                >
-                  {{i18n "discourse_maps.filters.date_any_month"}}
-                </button>
                 {{#each @availableMonths as |month|}}
                   <button
                     type="button"
@@ -323,15 +292,6 @@ export default class DiscourseMapsDateFilter extends Component {
               </div>
             {{else}}
               <div class="discourse-maps-date-filter__day-step">
-                <button
-                  type="button"
-                  class="discourse-maps-date-filter__chip discourse-maps-date-filter__chip--any
-                    {{unless @day 'active'}}"
-                  {{on "click" this.clearDay}}
-                >
-                  {{i18n "discourse_maps.filters.date_any_day"}}
-                </button>
-
                 <div class="discourse-maps-date-filter__calendar">
                   <div class="discourse-maps-date-filter__weekdays">
                     {{#each this.weekdayLabels as |label|}}
