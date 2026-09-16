@@ -28,8 +28,8 @@
 //    @onChangeCountry  - callback(countryName) al cambio del filtro paese.
 //    @onChangeYear/@onChangeMonth/@onChangeDay - callback(value) al cambio
 //                       del rispettivo livello del filtro periodo.
-//    @onResetDate      - callback() che riporta il filtro periodo alla data
-//                       odierna (usata da "Rimuovi filtri").
+//    @onResetDate      - callback() che azzera il filtro periodo (usata da
+//                       "Rimuovi filtri").
 // ============================================================================
 
 import Component from "@glimmer/component";
@@ -48,7 +48,9 @@ import icon from "discourse/helpers/d-icon";
 import ComboBox from "discourse/select-kit/components/combo-box";
 import DiscourseMapsDateFilter from "./discourse-maps-date-filter";
 import DiscourseMapsMap from "./discourse-maps-map";
-import formatDateRange from "../lib/discourse-maps-date-range";
+import formatDateRange, {
+  formatDateParts,
+} from "../lib/discourse-maps-date-range";
 
 // Quanti topic mostrare per volta nella lista (caricamento a scroll).
 const PAGE_SIZE = 10;
@@ -222,16 +224,30 @@ export default class MapPage extends Component {
     this.filtersExpanded = !this.filtersExpanded;
   };
 
+  // Il ComboBox è configurato con un'opzione "none" (etichetta "Tutte le
+  // categorie"/"Tag"/"Nazioni") per deselezionare il filtro. Con
+  // @valueProperty="name" (tag e paese) quell'opzione risulta con lo stesso
+  // valueProperty e nameProperty ("name"): select-kit finisce per riportare
+  // come valore la label tradotta invece di null (bug noto della sua utility
+  // interna defaultItem, che sovrascrive il valore quando i due property
+  // coincidono). Validando il valore contro la lista delle opzioni
+  // disponibili, un valore che non corrisponde a nessuna di esse (compresa
+  // quella label spuria) viene trattato come "nessun filtro" invece di
+  // finire in query string.
   handleCategoryChange = (value) => {
-    this.args.onChangeCategory(value ?? null);
+    const categoryId = Number(value);
+    const isValid = this.availableCategories.some((c) => c.id === categoryId);
+    this.args.onChangeCategory(isValid ? categoryId : null);
   };
 
   handleTagChange = (value) => {
-    this.args.onChangeTags(value ? [value] : []);
+    const isValid = this.availableTags.some((t) => t.name === value);
+    this.args.onChangeTags(isValid ? [value] : []);
   };
 
   handleCountryChange = (value) => {
-    this.args.onChangeCountry(value ?? null);
+    const isValid = this.availableCountries.some((c) => c.name === value);
+    this.args.onChangeCountry(isValid ? value : null);
   };
 
   // Anni disponibili nel filtro periodo: opzioni calcolate dal server sui
@@ -337,16 +353,37 @@ export default class MapPage extends Component {
     this.composer.model.set("discourse_maps_from_map", true);
   }
 
-  // Categoria/tag/paese vengono azzerati (nessun filtro), il periodo invece
-  // torna alla data odierna invece di essere rimosso del tutto: altrimenti,
-  // con potenzialmente migliaia di topic geolocalizzati a regime, il pulsante
-  // "Rimuovi filtri" mostrerebbe di colpo tutti i pin di sempre.
+  // Azzera tutti i filtri, periodo incluso: mostra tutti i topic
+  // geolocalizzati, senza alcun filtro di categoria/tag/paese/data.
   resetFilters = () => {
     this.args.onChangeCategory(null);
     this.args.onChangeTags([]);
     this.args.onChangeCountry(null);
     this.args.onResetDate();
   };
+
+  // True quando il filtro periodo è impostato esattamente sulla data
+  // odierna (il default alla primissima apertura della pagina, vedi
+  // routes/map.js): usato sia per il messaggio di lista vuota, sia per
+  // l'etichetta "Oggi" del filtro data. Si basa sui parametri "grezzi"
+  // (this.args.year/month/day, dalla query string) e non su
+  // this.selectedDay/ecc., che invece azzerano il giorno se non è tra le
+  // opzioni disponibili (nessun topic quel giorno) — capiterebbe quindi
+  // spesso proprio nel caso "oggi", vanificando il confronto.
+  // @year/@month/@day arrivano come stringhe dalla query string, da qui la
+  // conversione a Number.
+  get isTodayFilter() {
+    const { year, month, day } = this.args;
+    if (!year || !month || !day) {
+      return false;
+    }
+    const today = new Date();
+    return (
+      Number(year) === today.getFullYear() &&
+      Number(month) === today.getMonth() + 1 &&
+      Number(day) === today.getDate()
+    );
+  }
 
   // Solo i topic che hanno una posizione valida (per mappa e lista). La
   // mappa mostra sempre l'intero risultato filtrato, indipendentemente
@@ -433,7 +470,7 @@ export default class MapPage extends Component {
         })),
         commentsCount: Math.max((topic.posts_count || 1) - 1, 0),
         activityDate: this.formatActivityDate(topic),
-        dateRange: formatDateRange(topic.location),
+        dateParts: formatDateParts(topic.location),
       };
     });
   }
@@ -569,6 +606,7 @@ export default class MapPage extends Component {
           @year={{this.selectedYear}}
           @month={{this.selectedMonth}}
           @day={{this.selectedDay}}
+          @isToday={{this.isTodayFilter}}
           @availableYears={{this.availableYears}}
           @availableMonths={{this.availableMonths}}
           @availableDays={{this.availableDays}}
@@ -617,13 +655,19 @@ export default class MapPage extends Component {
               </a>
             </div>
 
-            <div class="discourse-maps-list__content">
+            <div class="discourse-maps-list__content" style="display: flex; flex-direction: column; align-items: flex-start;">
               <a href={{row.topic.url}} class="discourse-maps-list__title">
                 {{row.topic.title}}
               </a>
 
-              {{#if row.dateRange}}
-                <div class="discourse-maps-list__date">{{row.dateRange}}</div>
+              {{#if row.dateParts}}
+                <div class="discourse-maps-list__date" style="order: -1;">
+                  <span class="discourse-maps-list__date-value">{{row.dateParts.start}}</span>
+                  {{#unless row.dateParts.sameDay}}
+                    <span class="discourse-maps-list__date-separator" aria-hidden="true">–</span>
+                    <span class="discourse-maps-list__date-value">{{row.dateParts.end}}</span>
+                  {{/unless}}
+                </div>
               {{/if}}
 
               <div class="discourse-maps-list__meta">
@@ -666,7 +710,11 @@ export default class MapPage extends Component {
           </div>
         {{else}}
           <p class="discourse-maps-list__empty">
-            {{i18n "discourse_maps.list.empty"}}
+            {{#if this.isTodayFilter}}
+              {{i18n "discourse_maps.list.empty_today"}}
+            {{else}}
+              {{i18n "discourse_maps.list.empty"}}
+            {{/if}}
           </p>
         {{/each}}
 

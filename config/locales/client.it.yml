@@ -5,6 +5,7 @@ it:
       page_title: "Mappa"
       list:
         empty: "Nessun topic geolocalizzato al momento."
+        empty_today: "Nessun topic geolocalizzato disponibile per la data di oggi."
       popup:
         category: "Categoria:"
         tags: "Tags:"
@@ -16,6 +17,8 @@ it:
         all_months: "Mese"
         all_days: "Giorno"
         date_placeholder: "Qualsiasi data"
+        date_today: "Oggi"
+        date_any_year: "Tutti gli anni"
         date_close: "Chiudi"
         reset: "Rimuovi filtri"
         new_topic: "Nuovo post"

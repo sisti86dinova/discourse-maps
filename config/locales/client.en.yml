@@ -5,6 +5,7 @@ en:
       page_title: "Map"
       list:
         empty: "No geolocated topics yet."
+        empty_today: "No geolocated topics available for today's date."
       popup:
         category: "Category:"
         tags: "Tags:"
@@ -16,6 +17,8 @@ en:
         all_months: "Month"
         all_days: "Day"
         date_placeholder: "Any date"
+        date_today: "Today"
+        date_any_year: "All years"
         date_close: "Close"
         reset: "Clear filters"
         new_topic: "New topic"

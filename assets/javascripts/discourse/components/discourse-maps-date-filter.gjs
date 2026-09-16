@@ -8,6 +8,11 @@
 //
 //  Argomenti:
 //    @year/@month/@day       - valori attualmente selezionati (Number o null).
+//    @isToday                - true se @year/@month/@day corrispondono alla
+//                              data odierna, calcolato dal chiamante sui
+//                              parametri "grezzi" (non sanificati in base
+//                              alla disponibilità di @availableDays): usato
+//                              per mostrare "Oggi" invece della data.
 //    @availableYears         - [{id, name}] anni con topic geolocalizzati.
 //    @availableMonths        - [{id, name}] mesi disponibili per @year
 //                              (name già localizzato, vedi map-page.gjs).
@@ -68,6 +73,10 @@ export default class DiscourseMapsDateFilter extends Component {
     const { year, month, day } = this.args;
     if (!year) {
       return i18n("discourse_maps.filters.date_placeholder");
+    }
+
+    if (this.args.isToday) {
+      return i18n("discourse_maps.filters.date_today");
     }
 
     const options = { year: "numeric" };
@@ -189,6 +198,11 @@ export default class DiscourseMapsDateFilter extends Component {
     this.activeStep = "month";
   };
 
+  clearYear = () => {
+    this.args.onSelectYear(null);
+    this.activeStep = "year";
+  };
+
   selectMonth = (monthId) => {
     this.args.onSelectMonth(monthId);
     this.activeStep = "day";
@@ -209,7 +223,6 @@ export default class DiscourseMapsDateFilter extends Component {
         aria-expanded={{if this.isOpen "true" "false"}}
         {{on "click" this.toggle}}
       >
-        {{icon "calendar"}}
         <span class="discourse-maps-date-filter__trigger-label">{{this.triggerLabel}}</span>
         {{icon (if this.isOpen "angle-up" "angle-down")}}
       </button>
@@ -266,6 +279,14 @@ export default class DiscourseMapsDateFilter extends Component {
           <div class="discourse-maps-date-filter__body">
             {{#if this.isYearStep}}
               <div class="discourse-maps-date-filter__grid">
+                <button
+                  type="button"
+                  class="discourse-maps-date-filter__chip discourse-maps-date-filter__chip--any
+                    {{unless @year 'active'}}"
+                  {{on "click" this.clearYear}}
+                >
+                  {{i18n "discourse_maps.filters.date_any_year"}}
+                </button>
                 {{#each @availableYears as |year|}}
                   <button
                     type="button"

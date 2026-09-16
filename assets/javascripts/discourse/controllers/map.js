@@ -88,16 +88,15 @@ export default class MapController extends Controller {
     this.set("day", day || null);
   }
 
-  // Riporta il filtro periodo alla data odierna (usato dal pulsante "Rimuovi
-  // filtri"): a differenza di updateYear, imposta anno/mese/giorno tutti
-  // insieme invece di azzerare mese/giorno, perché qui vogliamo tornare al
-  // giorno corrente, non semplicemente rimuovere il filtro.
+  // Azzera il filtro periodo (usato dal pulsante "Rimuovi filtri"): nessun
+  // anno/mese/giorno selezionato, quindi tutti i topic geolocalizzati senza
+  // alcun filtro data, coerente con categoria/tag/paese che vengono azzerati
+  // allo stesso modo dallo stesso pulsante.
   @action
   resetDateFilter() {
-    const today = new Date();
-    this.set("year", today.getFullYear());
-    this.set("month", today.getMonth() + 1);
-    this.set("day", today.getDate());
+    this.set("year", null);
+    this.set("month", null);
+    this.set("day", null);
   }
 }
 

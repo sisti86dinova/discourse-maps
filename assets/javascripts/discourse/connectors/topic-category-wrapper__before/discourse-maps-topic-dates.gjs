@@ -8,20 +8,26 @@
 // ============================================================================
 
 import Component from "@glimmer/component";
-import formatDateRange from "../../lib/discourse-maps-date-range";
+import { formatDateParts } from "../../lib/discourse-maps-date-range";
 
 export default class DiscourseMapsTopicDates extends Component {
   get location() {
     return this.args.outletArgs?.topic?.discourse_maps_location;
   }
 
-  get dateRange() {
-    return formatDateRange(this.location);
+  get dateParts() {
+    return formatDateParts(this.location);
   }
 
   <template>
-    {{#if this.dateRange}}
-      <div class="discourse-maps-topic-dates">{{this.dateRange}}</div>
+    {{#if this.dateParts}}
+      <div class="discourse-maps-topic-dates">
+        <span class="discourse-maps-topic-dates__date">{{this.dateParts.start}}</span>
+        {{#unless this.dateParts.sameDay}}
+          <span class="discourse-maps-topic-dates__separator" aria-hidden="true">–</span>
+          <span class="discourse-maps-topic-dates__date">{{this.dateParts.end}}</span>
+        {{/unless}}
+      </div>
     {{/if}}
   </template>
 }
