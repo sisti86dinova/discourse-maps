@@ -1,10 +1,9 @@
 // ============================================================================
-//  Discourse Maps - Connector: periodo (data inizio/fine) nella pagina del
-//  topic.
+//  Discourse Maps - Connector: period (start/end date) on the topic page.
 //
-//  Si aggancia all'outlet "topic-category-wrapper__before", renderizzando
-//  subito prima di div.topic-category dentro div.title-wrapper. Mostra il
-//  periodo salvato sul topic, se presente.
+//  Hooks into the "topic-category-wrapper__before" outlet, rendering
+//  right before div.topic-category inside div.title-wrapper. Shows the
+//  period saved on the topic, if present.
 // ============================================================================
 
 import Component from "@glimmer/component";

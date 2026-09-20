@@ -1,8 +1,8 @@
 // ============================================================================
-//  Discourse Maps - Rotta client /map.
+//  Discourse Maps - /map client route.
 //
-//  Carica dal server (endpoint /map.json) l'elenco dei topic con tag mappa e
-//  relativa posizione, che verranno mostrati sulla mappa e nella lista.
+//  Loads from the server (/map.json endpoint) the list of topics with the
+//  map tag and their location, to be shown on the map and in the list.
 // ============================================================================
 
 import { service } from "@ember/service";
@@ -13,7 +13,7 @@ import { i18n } from "discourse-i18n";
 export default class MapRoute extends DiscourseRoute {
   @service router;
 
-  // I filtri sono query param: quando cambiano, ricarichiamo i dati dal server.
+  // Filters are query params: when they change, we reload the data from the server.
   queryParams = {
     category_id: { refreshModel: true },
     tags: { refreshModel: true },
@@ -23,31 +23,30 @@ export default class MapRoute extends DiscourseRoute {
     day: { refreshModel: true },
   };
 
-  // Diventa true dopo il primo ingresso nella rotta in questa visita:
-  // azzerato da resetController quando si esce, così il default scatta di
-  // nuovo alla prossima visita ma non viene riapplicato se l'utente rimuove
-  // manualmente il filtro data (pulsante "Rimuovi filtri") restando sulla
-  // pagina.
+  // Becomes true after the first entry into the route in this visit: reset
+  // by resetController when leaving, so the default kicks in again on the
+  // next visit but isn't reapplied if the user manually removes the date
+  // filter (the "Remove filters" button) while staying on the page.
   dateDefaultApplied = false;
 
   model(params, transition) {
-    // Primo ingresso nella pagina in questa visita, senza alcun filtro data
-    // esplicito in URL: filtriamo di default sulla data odierna, per evitare
-    // di mostrare in una volta sola tutti i topic geolocalizzati
-    // (potenzialmente migliaia). Il redirect (con conseguente nuova chiamata
-    // a model(), stavolta con dateDefaultApplied già true) sostituisce del
-    // tutto la richiesta ajax di questo primo passaggio.
+    // First entry into the page in this visit, with no explicit date
+    // filter in the URL: we default-filter on today's date, to avoid
+    // showing all geolocated topics at once (potentially thousands). The
+    // redirect (with the resulting new call to model(), this time with
+    // dateDefaultApplied already true) entirely replaces this first
+    // pass's ajax request.
     if (!this.dateDefaultApplied) {
       this.dateDefaultApplied = true;
 
       if (!params.year && !params.month && !params.day) {
         const today = new Date();
-        // Il redirect va verso la stessa rotta, cambiando solo i query
-        // param: senza l'abort esplicito della transizione in corso, il
-        // router genera un TypeError interno ("Cannot read properties of
-        // undefined (reading 'name')") perché la transizione verso la
-        // rotta corrente non è ancora stata finalizzata quando proviamo a
-        // sostituirla (bug noto di Ember, vedi emberjs/ember.js#18577).
+        // The redirect targets the same route, only changing the query
+        // params: without explicitly aborting the ongoing transition, the
+        // router throws an internal TypeError ("Cannot read properties of
+        // undefined (reading 'name')") because the transition to the
+        // current route hasn't been finalized yet when we try to replace
+        // it (known Ember bug, see emberjs/ember.js#18577).
         transition.abort();
         this.router.replaceWith("map", {
           queryParams: {
@@ -60,7 +59,7 @@ export default class MapRoute extends DiscourseRoute {
       }
     }
 
-    // Inviamo al server solo i filtri effettivamente valorizzati.
+    // We only send the server the filters that are actually set.
     const data = {};
     if (params.category_id) {
       data.category_id = params.category_id;
@@ -81,16 +80,16 @@ export default class MapRoute extends DiscourseRoute {
       data.day = params.day;
     }
 
-    return ajax("/map-under-dev.json", { data });
+    return ajax("/map.json", { data });
   }
 
-  // I filtri sono legati alla querystring, quindi per loro natura
-  // "sticky": senza questo hook, uscendo da /map e rientrandoci con un link
-  // semplice (senza parametri, es. dalla sidebar) il controller manterrebbe
-  // ancora i valori della visita precedente. Ember chiama resetController
-  // quando si esce dalla rotta (isExiting): qui azzeriamo i filtri così la
-  // pagina riparte sempre pulita, a meno che l'URL di destinazione non porti
-  // esplicitamente dei parametri (link condiviso, bookmark, ecc.).
+  // Filters are tied to the query string, so by nature they're "sticky":
+  // without this hook, leaving /map and coming back with a plain link (no
+  // parameters, e.g. from the sidebar) the controller would still keep
+  // the previous visit's values. Ember calls resetController when leaving
+  // the route (isExiting): here we clear the filters so the page always
+  // starts fresh, unless the destination URL explicitly carries
+  // parameters (shared link, bookmark, etc.).
   resetController(controller, isExiting) {
     if (isExiting) {
       controller.set("category_id", null);
@@ -103,9 +102,8 @@ export default class MapRoute extends DiscourseRoute {
     }
   }
 
-  // Titolo della pagina (tab del browser / breadcrumb).
+  // Page title (browser tab / breadcrumb).
   titleToken() {
     return i18n("discourse_maps.page_title");
   }
 }
-

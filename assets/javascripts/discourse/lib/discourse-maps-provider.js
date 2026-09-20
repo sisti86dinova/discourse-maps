@@ -1,55 +1,56 @@
 // ============================================================================
-//  Discourse Maps - Astrazione dei provider di mappa e geocoding.
+//  Discourse Maps - Abstraction of the map and geocoding providers.
 //
-//  Questo modulo isola tutta la logica specifica dei due provider supportati:
-//    - "locationiq" : tiles OpenStreetMap tramite Leaflet + geocoding REST
+//  This module isolates all the logic specific to the two supported
+//  providers:
+//    - "locationiq" : OpenStreetMap tiles via Leaflet + REST geocoding
 //    - "google"     : Google Maps JavaScript API + Geocoder JS
 //
-//  L'obiettivo è che il resto del plugin (composer, pagina /map) usi sempre le
-//  stesse funzioni pubbliche, senza sapere quale provider è attivo:
+//  The goal is for the rest of the plugin (composer, /map page) to always
+//  use the same public functions, without knowing which provider is active:
 //    - geocodeAddress(address, siteSettings) -> { lat, lng, display_name }
 //    - createMap(element, options)          -> { instance, destroy() }
 // ============================================================================
 
 import loadScript from "discourse/lib/load-script";
 
-// Leaflet è vendorizzato nel plugin (public/leaflet/) invece di essere
-// caricato da una CDN esterna (unpkg): il forum potrebbe girare dietro una
-// rete privata senza accesso a internet per le librerie statiche. I
-// provider di geocoding/tiles (LocationIQ, Google, OpenStreetMap) restano
-// invece servizi live e richiedono comunque accesso alla rete esterna.
+// Leaflet is vendored in the plugin (public/leaflet/) instead of being
+// loaded from an external CDN (unpkg): the forum might run behind a
+// private network without internet access for static libraries. The
+// geocoding/tile providers (LocationIQ, Google, OpenStreetMap) remain
+// live services and still require access to the external network.
 const LEAFLET_JS = "/plugins/discourse-maps/leaflet/leaflet.js";
 const LEAFLET_CSS = "/plugins/discourse-maps/leaflet/leaflet.css";
 
-// Vista di default (centro Italia) quando non ci sono coordinate valide.
+// Default view (center of Italy) when there are no valid coordinates.
 const DEFAULT_CENTER = { lat: 41.9, lng: 12.5 };
 const DEFAULT_ZOOM = 5;
-// Esportato: la mappa statica del topic usa lo stesso zoom per coerenza
-// visiva con la mappa interattiva a marker singolo.
+// Exported: the topic's static map uses the same zoom for visual
+// consistency with the single-marker interactive map.
 export const SINGLE_MARKER_ZOOM = 15;
 
-// Colore di fallback per i marker senza categoria (o categoria senza colore).
-// Esportate perché anche il pin sovrapposto alla mappa statica (nella pagina
-// del topic) deve avere le stesse dimensioni/colore di fallback dei marker
-// della mappa interattiva.
+// Fallback color for markers without a category (or a category with no color).
+// Exported because the pin overlaid on the static map (on the topic page)
+// must also have the same fallback size/color as the interactive map's markers.
 export const DEFAULT_MARKER_COLOR = "#0088CC";
 export const MARKER_WIDTH = 25;
 export const MARKER_HEIGHT = 41;
 
-// Marker con le stesse coordinate (arrotondate a questa precisione, ~1m)
-// vengono raggruppati in un unico pin "cluster" con il conteggio.
+// Markers with the same coordinates (rounded to this precision, ~1m) are
+// grouped into a single numbered "cluster" pin.
 const CLUSTER_PRECISION = 5;
 const CLUSTER_SIZE = 32;
-// Raggio (in pixel schermo) usato per disporre i pin quando un cluster
-// viene aperto ("spiderfy"): non dipende dallo zoom, così i pin restano
-// leggibili e cliccabili anche se le coordinate originali sono identiche.
+// Radius (in screen pixels) used to lay out the pins when an opened
+// cluster is "spiderfied": it doesn't depend on the zoom level, so the
+// pins stay readable and clickable even if the original coordinates are
+// identical.
 const SPIDERFY_RADIUS = 45;
 const SPIDERFY_RING_CAPACITY = 8;
 
 // ---------------------------------------------------------------------------
-//  Marker "a pin" colorato (SVG), usato sia da Leaflet (come divIcon) sia da
-//  Google Maps (come icona data-URI): il fill riprende il colore nativo
-//  della categoria del topic, con fallback a DEFAULT_MARKER_COLOR.
+//  Colored "pin" marker (SVG), used both by Leaflet (as a divIcon) and by
+//  Google Maps (as a data-URI icon): the fill matches the topic category's
+//  native color, falling back to DEFAULT_MARKER_COLOR.
 // ---------------------------------------------------------------------------
 function markerSvg(color) {
   const fill = color || DEFAULT_MARKER_COLOR;
@@ -64,8 +65,8 @@ function markerSvg(color) {
 }
 
 // ---------------------------------------------------------------------------
-//  Marker "a cluster" (cerchio numerato), usato quando più punti condividono
-//  le stesse coordinate: mostra quanti topic si trovano in quella posizione.
+//  "Cluster" marker (numbered circle), used when multiple points share the
+//  same coordinates: shows how many topics are at that location.
 // ---------------------------------------------------------------------------
 function clusterSvg(count, color) {
   const fill = color || DEFAULT_MARKER_COLOR;
@@ -81,8 +82,8 @@ function clusterSvg(count, color) {
 }
 
 // ---------------------------------------------------------------------------
-//  Raggruppa i marker che condividono la stessa posizione (coordinate
-//  arrotondate a CLUSTER_PRECISION decimali, ~1 metro di tolleranza).
+//  Groups the markers that share the same position (coordinates rounded to
+//  CLUSTER_PRECISION decimals, ~1 meter of tolerance).
 // ---------------------------------------------------------------------------
 function groupMarkersByPosition(points) {
   const groups = new Map();
@@ -97,9 +98,9 @@ function groupMarkersByPosition(points) {
 }
 
 // ---------------------------------------------------------------------------
-//  Calcola gli offset (in pixel) su cui disporre i marker di un cluster
-//  aperto, a raggiera su uno o più anelli concentrici a seconda del numero
-//  di punti da mostrare.
+//  Computes the offsets (in pixels) used to lay out the markers of an
+//  opened cluster, radially over one or more concentric rings depending on
+//  how many points need to be shown.
 // ---------------------------------------------------------------------------
 function spiderfyOffsets(count) {
   const offsets = [];
@@ -119,7 +120,7 @@ function spiderfyOffsets(count) {
 }
 
 // ---------------------------------------------------------------------------
-//  Utility: carica un foglio di stile esterno una sola volta.
+//  Utility: loads an external stylesheet only once.
 // ---------------------------------------------------------------------------
 function loadCss(url) {
   if (document.querySelector(`link[href="${url}"]`)) {
@@ -132,7 +133,7 @@ function loadCss(url) {
 }
 
 // ---------------------------------------------------------------------------
-//  Caricamento pigro delle librerie dei provider.
+//  Lazy loading of the provider libraries.
 // ---------------------------------------------------------------------------
 async function ensureLeaflet() {
   loadCss(LEAFLET_CSS);
@@ -154,30 +155,31 @@ async function ensureGoogle(apiKey, language) {
 // ===========================================================================
 //  GEOCODING
 // ===========================================================================
-//  L'utente inserisce l'indirizzo completo in un solo campo di testo libero:
-//  è il provider (LocationIQ/Nominatim o Google) a interpretarlo e a
-//  restituire, oltre alle coordinate, i componenti strutturati da cui
-//  estraiamo il paese (usato dal filtro nazione della pagina /map).
+//  The user enters the full address in a single free-text field: it's the
+//  provider (LocationIQ/Nominatim or Google) that interprets it and
+//  returns, besides the coordinates, the structured components from which
+//  we extract the country (used by the /map page's country filter).
 //
-//  Il nome del paese NON viene preso com'è dalla risposta del provider: la
-//  lingua di quella stringa dipende dalla lingua dell'indirizzo digitato e
-//  dalle preferenze della richiesta (es. "Italy" se l'utente scrive
-//  "... bologna italy"), il che creerebbe duplicati nel filtro nazione
-//  ("Italia" / "Italy"). Prendiamo invece il codice ISO 3166-1 alpha-2 del
-//  paese e lo traduciamo nella lingua del sito con Intl.DisplayNames: il
-//  nome salvato è così sempre canonico e in un'unica lingua.
+//  The country name is NOT taken as-is from the provider's response: the
+//  language of that string depends on the language of the typed address
+//  and on the request's preferences (e.g. "Italy" if the user writes
+//  "... bologna italy"), which would create duplicates in the country
+//  filter ("Italia" / "Italy"). Instead we take the country's ISO 3166-1
+//  alpha-2 code and translate it into the site's language with
+//  Intl.DisplayNames: the stored name is thus always canonical and in a
+//  single language.
 // ===========================================================================
 
-// Lingua del sito (es. "it"), usata per richieste di geocoding e per il nome
-// del paese. Il locale di Discourse usa l'underscore (es. "en_GB"), i
-// costruttori Intl e i provider vogliono il trattino.
+// Site language (e.g. "it"), used for geocoding requests and for the
+// country name. Discourse's locale uses an underscore (e.g. "en_GB"), the
+// Intl constructors and the providers want a hyphen.
 function siteLocale(siteSettings) {
   return (siteSettings.default_locale || "en").replace("_", "-");
 }
 
-// Converte un codice ISO 3166-1 alpha-2 (es. "IT") nel nome del paese nella
-// lingua indicata (es. "Italia"). Restituisce null se il codice manca o non
-// è riconosciuto, così il chiamante può ricadere sul nome del provider.
+// Converts an ISO 3166-1 alpha-2 code (e.g. "IT") into the country name in
+// the given language (e.g. "Italia"). Returns null if the code is missing
+// or unrecognized, so the caller can fall back to the provider's name.
 function countryNameFromCode(code, locale) {
   if (!code) {
     return null;
@@ -185,16 +187,17 @@ function countryNameFromCode(code, locale) {
   try {
     const upper = code.toUpperCase();
     const name = new Intl.DisplayNames([locale], { type: "region" }).of(upper);
-    // Per i codici sconosciuti .of() restituisce il codice stesso.
+    // For unknown codes .of() returns the code itself.
     return name && name !== upper ? name : null;
   } catch {
     return null;
   }
 }
 
-// Geocoding tramite l'endpoint REST di LocationIQ (supporta CORS).
-// "accept-language" forza la lingua del sito nella risposta (display_name);
-// il paese viene comunque derivato dal country_code, non dalla stringa.
+// Geocoding via the LocationIQ REST endpoint (supports CORS).
+// "accept-language" forces the site's language in the response
+// (display_name); the country is still derived from country_code, not
+// from the string.
 async function geocodeLocationIQ(query, apiKey, locale) {
   const url =
     `https://us1.locationiq.com/v1/search?key=${encodeURIComponent(apiKey)}` +
@@ -222,10 +225,11 @@ async function geocodeLocationIQ(query, apiKey, locale) {
   };
 }
 
-// Geocoding tramite il Geocoder della Google Maps JS API (evita problemi CORS).
-// La libreria viene caricata con la lingua del sito (formatted_address
-// coerente); il paese viene derivato dallo short_name (codice ISO), non dal
-// long_name, la cui lingua dipende da come è stato caricato lo script.
+// Geocoding via the Google Maps JS API's Geocoder (avoids CORS issues).
+// The library is loaded with the site's language (consistent
+// formatted_address); the country is derived from the short_name (ISO
+// code), not from the long_name, whose language depends on how the script
+// was loaded.
 async function geocodeGoogle(query, apiKey, locale) {
   const google = await ensureGoogle(apiKey, locale);
   const geocoder = new google.maps.Geocoder();
@@ -254,10 +258,10 @@ async function geocodeGoogle(query, apiKey, locale) {
 }
 
 /**
- * Converte un indirizzo (testo libero) in coordinate usando il provider
- * configurato.
- * @param {string} query - indirizzo completo inserito dall'utente
- * @param {Object} siteSettings - servizio site-settings di Discourse
+ * Converts an address (free text) into coordinates using the configured
+ * provider.
+ * @param {string} query - full address entered by the user
+ * @param {Object} siteSettings - Discourse's site-settings service
  * @returns {Promise<{lat:number, lng:number, display_name:string, country:?string}>}
  */
 export async function geocodeAddress(query, siteSettings) {
@@ -278,17 +282,16 @@ export async function geocodeAddress(query, siteSettings) {
 }
 
 // ===========================================================================
-//  MAPPA STATICA (pagina del topic)
+//  STATIC MAP (topic page)
 // ===========================================================================
-//  Un'immagine sola (nessuna chiamata a Leaflet/Google Maps JS, quindi niente
-//  tile né consumo di quota "dinamica") centrata sul punto, senza alcun
-//  marker richiesto al provider: il pin colorato per categoria viene
-//  disegnato sopra via CSS dal componente che usa questo URL, non fa parte
-//  dell'immagine.
+//  A single image (no call to the Leaflet/Google Maps JS, hence no tiles
+//  nor "dynamic" quota consumption) centered on the point, with no marker
+//  requested from the provider: the category-colored pin is drawn on top
+//  via CSS by the component that uses this URL, it's not part of the image.
 // ===========================================================================
 
 /**
- * Costruisce l'URL dell'immagine statica per il provider configurato.
+ * Builds the static image URL for the configured provider.
  * @param {{lat:number, lng:number}} location
  * @param {Object} siteSettings
  * @param {{width?:number, height?:number, zoom?:number}} [options]
@@ -314,10 +317,10 @@ export function staticMapUrl(location, siteSettings, options = {}) {
 }
 
 // ===========================================================================
-//  RENDERING DELLA MAPPA
+//  MAP RENDERING
 // ===========================================================================
 
-// Normalizza un marker: accetta lat/lng anche come stringhe.
+// Normalizes a marker: accepts lat/lng even as strings.
 function normalizeMarkers(markers) {
   return (markers || [])
     .map((m) => ({
@@ -328,7 +331,7 @@ function normalizeMarkers(markers) {
     .filter((m) => !isNaN(m.lat) && !isNaN(m.lng));
 }
 
-// --- Mappa Leaflet (provider LocationIQ / OpenStreetMap) -------------------
+// --- Leaflet map (LocationIQ / OpenStreetMap provider) -------------------
 async function createLeafletMap(element, { markers, interactive, apiKey, clusterColor }) {
   const L = await ensureLeaflet();
 
@@ -339,8 +342,8 @@ async function createLeafletMap(element, { markers, interactive, apiKey, cluster
     doubleClickZoom: interactive,
   });
 
-  // Se è disponibile la chiave LocationIQ usiamo i suoi tiles, altrimenti
-  // ricadiamo sui tiles standard di OpenStreetMap.
+  // If the LocationIQ key is available we use its tiles, otherwise we
+  // fall back to the standard OpenStreetMap tiles.
   const tileUrl = apiKey
     ? `https://{s}-tiles.locationiq.com/v3/streets/r/{z}/{x}/{y}.png?key=${apiKey}`
     : "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
@@ -368,17 +371,17 @@ async function createLeafletMap(element, { markers, interactive, apiKey, cluster
     if (m.popupHtml || m.display_name) {
       marker.bindPopup(m.popupHtml || m.display_name);
     }
-    // Evita che il click sul pin si propaghi alla mappa: altrimenti il
-    // listener di chiusura dei cluster (più sotto) richiuderebbe subito lo
-    // "spiderfy" appena apparso.
+    // Prevents the click on the pin from propagating to the map:
+    // otherwise the cluster-closing listener (below) would immediately
+    // close the "spiderfy" that just appeared.
     marker.on("click", (e) => L.DomEvent.stopPropagation(e));
     return marker;
   }
 
-  // Cluster: un solo pin numerato per ogni posizione con più marker. Al
-  // click si "apre" mostrando i singoli pin disposti a raggiera attorno al
-  // punto, così l'utente può scegliere quello desiderato anche quando le
-  // coordinate originali coincidono esattamente.
+  // Cluster: a single numbered pin for each position with multiple
+  // markers. On click it "opens", showing the individual pins arranged
+  // radially around the point, so the user can pick the one they want
+  // even when the original coordinates coincide exactly.
   const openClusters = [];
 
   function addLeafletCluster(group) {
@@ -440,8 +443,8 @@ async function createLeafletMap(element, { markers, interactive, apiKey, cluster
       }
     });
 
-    // Coordinate schermo diverse dopo uno zoom/pan: richiudiamo per evitare
-    // pin posizionati in punti non più coerenti con il cluster.
+    // Different screen coordinates after a zoom/pan: we collapse to
+    // avoid pins placed at points no longer consistent with the cluster.
     map.on("zoomstart movestart", collapse);
 
     const api = { collapse };
@@ -456,7 +459,7 @@ async function createLeafletMap(element, { markers, interactive, apiKey, cluster
     }
   });
 
-  // Click su un punto vuoto della mappa: richiude eventuali cluster aperti.
+  // Click on an empty point of the map: closes any open clusters.
   map.on("click", () => openClusters.forEach((c) => c.collapse()));
 
   if (latLngs.length === 1) {
@@ -467,16 +470,16 @@ async function createLeafletMap(element, { markers, interactive, apiKey, cluster
     map.setView([DEFAULT_CENTER.lat, DEFAULT_CENTER.lng], DEFAULT_ZOOM);
   }
 
-  // Leaflet a volte calcola male le dimensioni se il contenitore era nascosto:
-  // forziamo un ricalcolo appena possibile.
+  // Leaflet sometimes miscalculates the size if the container was
+  // hidden: we force a recalculation as soon as possible.
   setTimeout(() => map.invalidateSize(), 200);
 
   return { instance: map, destroy: () => map.remove() };
 }
 
-// Google Maps non espone direttamente la conversione lat/lng -> pixel
-// schermo: serve un OverlayView "invisibile" per ottenere la projection
-// dopo il primo giro di rendering della mappa.
+// Google Maps doesn't directly expose the lat/lng -> screen pixel
+// conversion: an "invisible" OverlayView is needed to get the projection
+// after the map's first rendering pass.
 function getGoogleProjection(google, map) {
   return new Promise((resolve) => {
     const helper = new google.maps.OverlayView();
@@ -489,7 +492,7 @@ function getGoogleProjection(google, map) {
   });
 }
 
-// --- Mappa Google Maps -----------------------------------------------------
+// --- Google Maps map -----------------------------------------------------
 async function createGoogleMap(
   element,
   { markers, interactive, apiKey, clusterColor, language }
@@ -510,8 +513,8 @@ async function createGoogleMap(
 
   const projectionPromise = getGoogleProjection(google, map);
 
-  // Un solo InfoWindow alla volta: prima di aprire quello di un pin chiudiamo
-  // l'eventuale popup lasciato aperto da un click precedente.
+  // Only one InfoWindow at a time: before opening a pin's, we close any
+  // popup left open by a previous click.
   let activeInfoWindow = null;
 
   function addGoogleMarker(m) {
@@ -536,10 +539,10 @@ async function createGoogleMap(
     return marker;
   }
 
-  // Cluster: un solo pin numerato per ogni posizione con più marker. Al
-  // click si "apre" mostrando i singoli pin disposti a raggiera attorno al
-  // punto (i click sui marker di Google non si propagano alla mappa, quindi
-  // non serve stopPropagation come in Leaflet).
+  // Cluster: a single numbered pin for each position with multiple
+  // markers. On click it "opens", showing the individual pins arranged
+  // radially around the point (clicks on Google's markers don't
+  // propagate to the map, so stopPropagation isn't needed like in Leaflet).
   const openClusters = [];
 
   function addGoogleCluster(group) {
@@ -608,8 +611,8 @@ async function createGoogleMap(
       }
     });
 
-    // Coordinate schermo diverse dopo uno zoom: richiudiamo per evitare pin
-    // posizionati in punti non più coerenti con il cluster.
+    // Different screen coordinates after a zoom: we collapse to avoid
+    // pins placed at points no longer consistent with the cluster.
     map.addListener("zoom_changed", collapse);
     map.addListener("dragstart", collapse);
 
@@ -625,7 +628,7 @@ async function createGoogleMap(
     }
   });
 
-  // Click su un punto vuoto della mappa: richiude eventuali cluster aperti.
+  // Click on an empty point of the map: closes any open clusters.
   map.addListener("click", () => openClusters.forEach((c) => c.collapse()));
 
   if (points.length === 1) {
@@ -639,8 +642,8 @@ async function createGoogleMap(
 }
 
 /**
- * Crea una mappa nel contenitore indicato usando il provider configurato.
- * @param {HTMLElement} element - il div che ospiterà la mappa
+ * Creates a map in the given container using the configured provider.
+ * @param {HTMLElement} element - the div that will host the map
  * @param {Object} options - { provider, apiKey, markers, interactive, language }
  * @returns {Promise<{instance:Object, destroy:Function}>}
  */
@@ -652,4 +655,3 @@ export async function createMap(element, options) {
   }
   return createLeafletMap(element, opts);
 }
-

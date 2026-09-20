@@ -1,7 +1,8 @@
 // ============================================================================
-//  Discourse Maps - Template della rotta /map.
+//  Discourse Maps - /map route template.
 //
-//  Passa dati e stato dei filtri (dal controller) al componente MapPage.
+//  Passes the data and filter state (from the controller) to the MapPage
+//  component.
 // ============================================================================
 
 import RouteTemplate from "ember-route-template";

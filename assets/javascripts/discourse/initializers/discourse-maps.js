@@ -1,12 +1,12 @@
 // ============================================================================
-//  Discourse Maps - Initializer principale lato client.
+//  Discourse Maps - Main client-side initializer.
 //
-//  Responsabilità in questo step:
-//    - aggiungere un pulsante nella toolbar del composer che apre il modal
-//      per inserire la posizione geografica;
-//    - registrare la serializzazione del dato "discourse_maps_location" così
-//      che venga inviato al server alla creazione del topic e sia disponibile
-//      sul modello del topic appena creato.
+//  Responsibilities at this step:
+//    - add a button to the composer toolbar that opens the modal for
+//      entering the geographic location;
+//    - register serialization of the "discourse_maps_location" data so
+//      that it's sent to the server on topic creation and is available
+//      on the model of the just-created topic.
 // ============================================================================
 
 import { withPluginApi } from "discourse/lib/plugin-api";
@@ -20,16 +20,16 @@ export default {
     withPluginApi("1.8.0", (api) => {
       const siteSettings = api.container.lookup("service:site-settings");
 
-      // Se il plugin è disabilitato non aggiungiamo nulla.
+      // If the plugin is disabled we don't add anything.
       if (!siteSettings.discourse_maps_enabled) {
         return;
       }
 
-      // --- Nasconde il tag "mappa" nelle tendine di selezione tag ----------
-      // Protezione visiva in più, oltre al tag group in sola lettura lato
-      // server (che impedisce di assegnarlo dal composer): nasconde la voce
-      // anche se dovesse comparire in un widget di selezione tag non
-      // coperto da quel permesso.
+      // --- Hides the "map" tag in the tag selection dropdowns --------------
+      // Extra visual protection, on top of the read-only tag group
+      // server-side (which prevents assigning it from the composer):
+      // hides the entry even if it were to show up in a tag selection
+      // widget not covered by that permission.
       const mapTagId = siteSettings.discourse_maps_map_tag_id;
       if (mapTagId) {
         const style = document.createElement("style");
@@ -37,20 +37,20 @@ export default {
         document.head.appendChild(style);
       }
 
-      // --- Icona di geolocalizzazione visibile solo su /map-under-dev ------
-      // Il pulsante della toolbar (sotto) è globale: comparirebbe in
-      // qualunque editor del sito. Aggiungiamo/rimuoviamo una classe sul
-      // <body> ad ogni cambio pagina, così il CSS (discourse-maps.scss) può
-      // nascondere il pulsante ovunque tranne quando questa classe è
-      // presente, senza dover distinguere dove il composer è stato aperto.
+      // --- Geolocation icon visible only on /map ----------------------------
+      // The toolbar button (below) is global: it would show up in any
+      // editor on the site. We add/remove a class on the <body> on every
+      // page change, so the CSS (discourse-maps.scss) can hide the
+      // button everywhere except when this class is present, without
+      // having to tell where the composer was opened from.
       api.onPageChange((url) => {
         document.body.classList.toggle(
           "discourse-maps-page-active",
-          url.startsWith("/map-under-dev")
+          url.startsWith("/map")
         );
       });
 
-      // --- Link alla pagina /map nella sidebar -----------------------------
+      // --- Link to the /map page in the sidebar -----------------------------
       api.addCommunitySectionLink({
         name: "discourse-maps",
         route: "map",
@@ -59,32 +59,31 @@ export default {
         icon: "globe",
       });
 
-      // --- Serializzazione dei dati geografici -----------------------------
-      // Invia "discourse_maps_location" al server alla creazione del topic...
+      // --- Serialization of geographic data -----------------------------
+      // Sends "discourse_maps_location" to the server on topic creation...
       api.serializeOnCreate("discourse_maps_location");
-      // ...e lo copia sul modello del topic appena creato (per il rendering).
+      // ...and copies it onto the just-created topic's model (for rendering).
       api.serializeToTopic(
         "discourse_maps_location",
         "topic.discourse_maps_location"
       );
 
-      // Invia "discourse_maps_from_map" quando il topic è stato aperto dal
-      // pulsante "Nuovo topic" della pagina /map (vedi map-page.gjs): serve
-      // al server per assegnare comunque il tag "mappa", anche se l'utente
-      // non ha compilato la posizione tramite il modal del composer.
+      // Sends "discourse_maps_from_map" when the topic was opened from the
+      // "New topic" button on the /map page (see map-page.gjs): the
+      // server needs this to still assign the "map" tag, even if the
+      // user didn't fill in the location via the composer modal.
       api.serializeOnCreate("discourse_maps_from_map");
 
-      // --- Pulsante nella toolbar del composer -----------------------------
+      // --- Button in the composer toolbar -----------------------------
       api.onToolbarCreate((toolbar) => {
         toolbar.addButton({
           id: "discourse-maps-location",
           group: "extras",
           icon: "location-dot",
           title: "discourse_maps.composer.button_title",
-          // Classe esplicita usata dal CSS per nascondere il pulsante fuori
-          // da /map-under-dev (vedi api.onPageChange sopra), invece di fare
-          // affidamento sulla classe che Discourse genera di default per
-          // l'id del pulsante.
+          // Explicit class used by the CSS to hide the button outside
+          // /map (see api.onPageChange above), instead of relying on the
+          // class Discourse generates by default for the button id.
           className: "discourse-maps-location-btn",
           action: () => {
             const modal = api.container.lookup("service:modal");
@@ -95,5 +94,4 @@ export default {
     });
   },
 };
-
 

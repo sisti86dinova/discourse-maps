@@ -1,22 +1,22 @@
 // ============================================================================
-//  Discourse Maps - Filtro data della pagina /map (anno / mese / giorno).
+//  Discourse Maps - Date filter for the /map page (year / month / day).
 //
-//  Sostituisce 3 combobox separate con un unico controllo "a pillola" che
-//  apre un pannello (bottom sheet su mobile, popover ancorato su desktop)
-//  con selezione progressiva: anno -> mese -> giorno, ognuno opzionale (si
-//  può fermarsi a un livello qualsiasi, come nei picker "tipo Skyscanner").
+//  Replaces 3 separate comboboxes with a single "pill" control that opens
+//  a panel (bottom sheet on mobile, anchored popover on desktop) with
+//  progressive selection: year -> month -> day, each optional (you can
+//  stop at any level, like in "Skyscanner-style" pickers).
 //
-//  Argomenti:
-//    @year/@month/@day       - valori attualmente selezionati (Number o null).
-//    @isToday                - true se @year/@month/@day corrispondono alla
-//                              data odierna, calcolato dal chiamante sui
-//                              parametri "grezzi" (non sanificati in base
-//                              alla disponibilità di @availableDays): usato
-//                              per mostrare "Oggi" invece della data.
-//    @availableYears         - [{id, name}] anni con topic geolocalizzati.
-//    @availableMonths        - [{id, name}] mesi disponibili per @year
-//                              (name già localizzato, vedi map-page.gjs).
-//    @availableDays          - [{id, name}] giorni disponibili per @year+@month.
+//  Arguments:
+//    @year/@month/@day       - currently selected values (Number or null).
+//    @isToday                - true if @year/@month/@day match today's
+//                              date, computed by the caller on the "raw"
+//                              parameters (not sanitized based on
+//                              @availableDays' availability): used to
+//                              show "Today" instead of the date.
+//    @availableYears         - [{id, name}] years with geolocated topics.
+//    @availableMonths        - [{id, name}] months available for @year
+//                              (name already localized, see map-page.gjs).
+//    @availableDays          - [{id, name}] days available for @year+@month.
 //    @onSelectYear/@onSelectMonth/@onSelectDay - callback(value|null).
 // ============================================================================
 
@@ -29,9 +29,9 @@ import icon from "discourse/helpers/d-icon";
 
 export default class DiscourseMapsDateFilter extends Component {
   @tracked isOpen = false;
-  // null = nessuno step forzato: si usa lo step "naturale" (il primo livello
-  // ancora da scegliere, o il giorno se tutto è già impostato). Impostato
-  // esplicitamente quando l'utente clicca una tab o seleziona un valore.
+  // null = no step forced: the "natural" step is used (the first level
+  // still to be chosen, or the day if everything is already set). Set
+  // explicitly when the user clicks a tab or selects a value.
   @tracked activeStep = null;
 
   get effectiveStep() {
@@ -67,8 +67,8 @@ export default class DiscourseMapsDateFilter extends Component {
     return !this.args.month;
   }
 
-  // Etichetta del pulsante che apre il pannello: solo le parti effettivamente
-  // selezionate (anno / anno+mese / anno+mese+giorno), localizzata.
+  // Label of the button that opens the panel: only the parts actually
+  // selected (year / year+month / year+month+day), localized.
   get triggerLabel() {
     const { year, month, day } = this.args;
     if (!year) {
@@ -94,8 +94,8 @@ export default class DiscourseMapsDateFilter extends Component {
     return formatter.format(new Date(year, (month || 1) - 1, day || 1));
   }
 
-  // Etichette dei giorni della settimana (Lun...Dom), localizzate: 1 gennaio
-  // 2024 era un lunedì, usato solo come riferimento per calcolare i nomi.
+  // Weekday labels (Mon...Sun), localized: January 1, 2024 was a Monday,
+  // used only as a reference to compute the names.
   get weekdayLabels() {
     const formatter = new Intl.DateTimeFormat(
       document.documentElement.lang || undefined,
@@ -108,9 +108,9 @@ export default class DiscourseMapsDateFilter extends Component {
     return labels;
   }
 
-  // Griglia del calendario per @year/@month: settimane da lunedì a domenica,
-  // celle vuote (null) per il padding iniziale/finale. Un giorno è
-  // selezionabile solo se presente in @availableDays (ha topic geolocalizzati).
+  // Calendar grid for @year/@month: weeks from Monday to Sunday, empty
+  // cells (null) for leading/trailing padding. A day is selectable only
+  // if present in @availableDays (has geolocated topics).
   get calendarWeeks() {
     const year = this.args.year;
     const month = this.args.month;
@@ -208,8 +208,8 @@ export default class DiscourseMapsDateFilter extends Component {
     this.activeStep = "day";
   };
 
-  // Selezionare un giorno è l'azione più specifica possibile: chiudiamo il
-  // pannello, non c'è altro livello su cui proseguire.
+  // Selecting a day is the most specific action possible: we close the
+  // panel, there's no other level to move on to.
   selectDay = (day) => {
     this.args.onSelectDay(day);
     this.close();

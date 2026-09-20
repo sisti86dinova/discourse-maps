@@ -1,13 +1,13 @@
 // ============================================================================
-//  Discourse Maps - Formattazione dell'intervallo di date di un topic
-//  geolocalizzato (location.start_date / location.end_date).
+//  Discourse Maps - Formatting of a geolocated topic's date range
+//  (location.start_date / location.end_date).
 // ============================================================================
 
-// Le date sono salvate come stringhe "YYYY-MM-DD": costruiamo il Date
-// esplicitando anno/mese/giorno invece di parsare la stringa, per evitare
-// l'off-by-one dovuto al fuso orario che `new Date("YYYY-MM-DD")`
-// applicherebbe (interpretata come UTC mezzanotte, può scadere al giorno
-// prima nel fuso locale).
+// Dates are stored as "YYYY-MM-DD" strings: we build the Date by
+// explicitly setting year/month/day instead of parsing the string, to
+// avoid the timezone off-by-one that `new Date("YYYY-MM-DD")` would
+// introduce (interpreted as UTC midnight, it can roll back to the
+// previous day in the local timezone).
 function toDate(value) {
   const [year, month, day] = value.split("-").map(Number);
   return new Date(year, month - 1, day);
@@ -20,9 +20,9 @@ function dateFormatter(options) {
   );
 }
 
-// Formatta il periodo (inizio/fine) di un topic in un'unica etichetta
-// leggibile, localizzata: solo la data di inizio se coincide con quella di
-// fine (evento di un giorno), altrimenti "inizio – fine".
+// Formats a topic's period (start/end) into a single, readable, localized
+// label: only the start date if it matches the end date (single-day
+// event), otherwise "start – end".
 export default function formatDateRange(
   location,
   options = { year: "numeric", month: "short", day: "numeric" }
@@ -40,10 +40,11 @@ export default function formatDateRange(
   return `${start} – ${end}`;
 }
 
-// Come sopra, ma restituisce inizio/fine come valori separati (invece di
-// un'unica stringa già unita), per chi deve disporli diversamente via CSS
-// (es. una sotto l'altra su mobile). `end` è null quando l'evento dura un
-// solo giorno: in quel caso va mostrata solo la data di inizio.
+// Same as above, but returns start/end as separate values (instead of a
+// single already-joined string), for callers who need to lay them out
+// differently via CSS (e.g. one below the other on mobile). `end` is
+// null when the event lasts a single day: in that case only the start
+// date should be shown.
 export function formatDateParts(
   location,
   options = { year: "numeric", month: "long", day: "numeric" }

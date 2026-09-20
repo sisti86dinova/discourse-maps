@@ -1,16 +1,16 @@
 // ============================================================================
-//  Discourse Maps - Stili comuni.
+//  Discourse Maps - Common styles.
 //
-//  Foglio di stile di base. Contiene già alcune media query di esempio per
-//  garantire che il contenitore della mappa sia responsive (requisito da
-//  specifica). Gli stili specifici (pagina /map, popup, filtri) verranno
-//  aggiunti negli step successivi.
+//  Base stylesheet. Already contains a few example media queries to
+//  ensure the map container is responsive (a spec requirement). The
+//  specific styles (/map page, popup, filters) will be added in later
+//  steps.
 // ============================================================================
 
-// Contenitore della mappa interattiva (Leaflet/Google Maps JS), usato solo
-// dalla pagina /map: la pagina del topic usa la mappa statica più sotto
-// (.discourse-maps-static), per non caricare l'SDK della mappa per un solo
-// pin che non serve né spostare né zoomare.
+// Container for the interactive map (Leaflet/Google Maps JS), used only
+// by the /map page: the topic page uses the static map further below
+// (.discourse-maps-static), to avoid loading the map SDK for a single
+// pin that doesn't need to be panned or zoomed.
 .discourse-map {
   position: relative;
   width: 100%;
@@ -23,15 +23,15 @@
     display: none !important;
   }
 
-  // Il pin è un SVG colorato (categoria del topic): rimuove lo sfondo e il
-  // bordo che Leaflet applica di default ai divIcon.
+  // The pin is a colored SVG (topic category): removes the background
+  // and border that Leaflet applies by default to divIcons.
   .discourse-maps-marker {
     background: transparent;
     border: none;
   }
 
-  // Pin "cluster" (cerchio numerato) mostrato quando più topic condividono
-  // la stessa posizione: al click si apre a raggiera nei singoli pin.
+  // "Cluster" pin (numbered circle) shown when multiple topics share the
+  // same position: on click it opens up into the individual pins.
   .discourse-maps-cluster {
     background: transparent;
     border: none;
@@ -39,20 +39,20 @@
   }
 
   // --- Responsive -----------------------------------------------------------
-  // Su tablet riduciamo leggermente l'altezza.
+  // On tablet we slightly reduce the height.
   @media screen and (max-width: 1024px) {
     height: 340px;
   }
 
-  // Su smartphone la mappa diventa più compatta.
+  // On smartphone the map becomes more compact.
   @media screen and (max-width: 767px) {
     height: 300px;
   }
 }
 
-// Titolo nel popup di un pin (Leaflet e Google Maps): globale, non annidato
-// sotto .discourse-map, perché l'InfoWindow di Google Maps viene renderizzata
-// in un elemento separato, fuori dal contenitore della mappa.
+// Title in a pin's popup (Leaflet and Google Maps): global, not nested
+// under .discourse-map, because Google Maps' InfoWindow is rendered in a
+// separate element, outside the map's container.
 .discourse-maps-popup__title {
   display: block;
   margin-bottom: 0.35em;
@@ -60,14 +60,14 @@
   font-weight: 700;
 }
 
-// Contenitore della mappa mostrata nella pagina del topic.
+// Container for the map shown on the topic page.
 .discourse-maps-topic {
   margin: 0 0 1.5em;
 }
 
-// Periodo (data inizio/fine) mostrato in title-wrapper, prima della categoria.
-// Su desktop inizio e fine restano sulla stessa riga (separate da un
-// trattino); su mobile vanno una sotto l'altra, senza separatore.
+// Period (start/end date) shown in title-wrapper, before the category.
+// On desktop start and end stay on the same line (separated by a dash);
+// on mobile they go one below the other, with no separator.
 .discourse-maps-topic-dates {
   width: 100%;
   margin: .5em 0;
@@ -93,10 +93,10 @@
   }
 }
 
-// Mappa statica del topic: una sola immagine (nessun SDK caricato) con un
-// pin SVG nostro sovrapposto via CSS, sempre centrato (il punto salvato è
-// per definizione il centro della mappa, quindi non serve calcolare alcuna
-// proiezione lat/lng -> pixel come per la mappa interattiva).
+// Topic's static map: a single image (no SDK loaded) with our own SVG
+// pin overlaid via CSS, always centered (the saved point is by
+// definition the center of the map, so no lat/lng -> pixel projection
+// needs to be computed, unlike the interactive map).
 .discourse-maps-static {
   position: relative;
   width: 100%;
@@ -115,8 +115,8 @@
     position: absolute;
     left: 50%;
     top: 50%;
-    // Il "tip" (punta) del pin, non il suo centro, deve toccare il punto:
-    // stessa logica dell'iconAnchor della mappa interattiva.
+    // The pin's "tip", not its center, must touch the point: same logic
+    // as the interactive map's iconAnchor.
     transform: translate(-50%, -100%);
     pointer-events: none;
   }
@@ -130,7 +130,7 @@
   }
 }
 
-// Pagina /map: mappa in alto + lista dei topic sotto.
+// /map page: map at the top + topic list below.
 .discourse-maps-page {
   max-width: 1100px;
   margin: 0 auto;
@@ -140,10 +140,10 @@
     margin-bottom: 0.75em;
   }
 
-  // Riga con toggle filtri + "Nuovo post": esiste solo su mobile, su
-  // desktop entrambi i pulsanti restano al loro posto originale (toggle
-  // nascosto, "Nuovo post" in fondo alla barra filtri) e questo blocco non
-  // occupa spazio.
+  // Row with the filters toggle + "New post": only exists on mobile, on
+  // desktop both buttons stay in their original place (toggle hidden,
+  // "New post" at the end of the filters bar) and this block takes up
+  // no space.
   .discourse-maps-mobile-actions {
     display: none;
 
@@ -155,7 +155,7 @@
     }
   }
 
-  // Barra dei filtri (categoria + tag).
+  // Filters bar (category + tags).
   .discourse-maps-filters {
     position: relative;
     z-index: 100;
@@ -172,20 +172,20 @@
       }
     }
 
-    // Pulsante "Nuovo topic" (visibile solo ad admin/gruppi abilitati):
-    // sempre allineato a destra della barra filtri. Su mobile questa
-    // istanza è nascosta: ne resta visibile solo la copia nella riga del
-    // toggle (.discourse-maps-filters__new-topic--mobile), sempre in vista
-    // anche a filtri chiusi.
+    // "New topic" button (visible only to admins/enabled groups): always
+    // aligned to the right of the filters bar. On mobile this instance
+    // is hidden: only its copy in the toggle row remains visible
+    // (.discourse-maps-filters__new-topic--mobile), always in view even
+    // when the filters are closed.
     .discourse-maps-filters__new-topic {
       margin-left: auto;
       flex: 0 0 auto;
     }
 
-    // Su smartphone i filtri vanno a tutta larghezza, uno sotto l'altro, e
-    // sono racchiusi nel blocco richiudibile: "is-collapsed" (default) li
-    // nasconde finché non si apre il toggle. Su desktop "is-collapsed" non
-    // ha effetto: i filtri restano sempre visibili.
+    // On smartphone the filters go full width, one below the other, and
+    // are enclosed in the collapsible block: "is-collapsed" (default)
+    // hides them until the toggle is opened. On desktop "is-collapsed"
+    // has no effect: the filters always stay visible.
     @media screen and (max-width: 767px) {
       flex-direction: column;
       margin-top: 0.75em;
@@ -209,8 +209,8 @@
     }
   }
 
-  // Copia mobile di "Nuovo post" (nella riga del toggle): nascosta su
-  // desktop, dove resta visibile solo l'istanza in fondo alla barra filtri.
+  // Mobile copy of "New post" (in the toggle row): hidden on desktop,
+  // where only the instance at the end of the filters bar stays visible.
   .discourse-maps-filters__new-topic--mobile {
     display: none;
 
@@ -219,7 +219,7 @@
     }
   }
 
-  // Nella pagina /map la mappa è più alta rispetto a quella nei topic.
+  // On the /map page the map is taller than the one on topics.
   .discourse-map {
     height: 500px;
 
@@ -232,11 +232,11 @@
     }
   }
 
-  // Su mobile, a filtri espansi la mappa deve staccarsi visibilmente dal
-  // blocco filtri sovrastante: il distacco è un margin-top sulla mappa
-  // (non un margin-bottom sui filtri, rimosso sopra) così, a filtri
-  // chiusi, il pulsante toggle resta attaccato al bordo superiore della
-  // mappa invece di lasciare comunque uno spazio vuoto.
+  // On mobile, with filters expanded the map must visibly separate from
+  // the filters block above it: the gap is a margin-top on the map (not
+  // a margin-bottom on the filters, removed above) so that, with filters
+  // closed, the toggle button stays attached to the map's top edge
+  // instead of still leaving an empty gap.
   @media screen and (max-width: 767px) {
     .discourse-maps-filters:not(.is-collapsed) + .discourse-map {
       margin-top: 1em;
@@ -244,10 +244,10 @@
   }
 }
 
-// Filtro data (anno/mese/giorno) della pagina /map: pillola che apre un
-// pannello con selezione progressiva. Stili mobile-first: le regole di base
-// sono per il bottom sheet a tutta larghezza, quelle desktop (>= 768px)
-// riducono il pannello a popover ancorato sotto il pulsante.
+// Date filter (year/month/day) on the /map page: a pill that opens a
+// panel with progressive selection. Mobile-first styles: the base rules
+// are for the full-width bottom sheet, the desktop ones (>= 768px)
+// shrink the panel to a popover anchored below the button.
 .discourse-maps-date-filter {
   position: relative;
   display: flex;
@@ -266,8 +266,8 @@
     white-space: nowrap;
   }
 
-  // Cattura i click fuori dal pannello per chiuderlo. Su mobile è anche
-  // l'oscuramento visivo dietro il bottom sheet.
+  // Captures clicks outside the panel to close it. On mobile it's also
+  // the visual dimming behind the bottom sheet.
   &__backdrop {
     position: fixed;
     inset: 0;
@@ -429,7 +429,7 @@
   }
 }
 
-// Lista dei topic sotto la mappa: griglia a 2 colonne da 768px in su.
+// List of topics below the map: 2-column grid from 768px up.
 .discourse-maps-list {
   margin-top: 1.5em;
   display: grid;
@@ -470,8 +470,8 @@
       object-fit: cover;
     }
 
-    // Topic senza immagine in evidenza: stessa area del thumbnail, con
-    // un'icona al centro invece della foto.
+    // Topic with no featured image: same area as the thumbnail, with an
+    // icon in the center instead of the photo.
     .thumbnail-placeholder {
       display: flex;
       align-items: center;
@@ -526,15 +526,15 @@
     margin: 0;
   }
 
-  // Topic già letto dall'utente corrente: titolo in stile "visitato",
-  // come nella topic-list nativa.
+  // Topic already read by the current user: title in "visited" style,
+  // like in the native topic list.
   &__item.visited &__title {
     font-weight: var(--topic-title-font-weight--visited);
   }
 
-  // Come .discourse-maps-topic-dates nel dettaglio del topic: inizio/fine
-  // sulla stessa riga da 480px in su, una sotto l'altra (senza separatore)
-  // sotto tale soglia.
+  // Like .discourse-maps-topic-dates in the topic detail: start/end on
+  // the same line from 480px up, one below the other (with no separator)
+  // below that threshold.
   &__date {
     margin-top: 4px;
     display: flex;
@@ -598,14 +598,14 @@
     font-style: italic;
   }
 
-  // Elemento invisibile osservato per caricare il prossimo gruppo di topic.
+  // Invisible element observed to load the next group of topics.
   &__sentinel {
     grid-column: 1 / -1;
     height: 1px;
   }
 }
 
-// Form del modal di inserimento posizione.
+// Location entry modal's form.
 .discourse-maps-form {
   .control-group {
     margin-bottom: 0.75em;
@@ -639,13 +639,13 @@
   margin: 12px 18px 12px 12px;
 }
 
-// Pulsante "geolocalizza" nella toolbar del composer: deve comparire solo
-// nell'editor usato per creare un nuovo post dalla pagina /map-under-dev,
-// non negli editor del resto del sito. Il body riceve la classe
-// "discourse-maps-page-active" solo mentre si è su quella pagina (vedi
-// api.onPageChange nell'initializer); ".discourse-maps-location" copre anche
-// l'eventuale classe generata di default da Discourse a partire dall'id del
-// pulsante, oltre alla classe esplicita assegnata in fase di registrazione.
+// "Geolocate" button in the composer toolbar: must only show up in the
+// editor used to create a new post from the /map page, not in the
+// editors elsewhere on the site. The body only gets the
+// "discourse-maps-page-active" class while on that page (see
+// api.onPageChange in the initializer); ".discourse-maps-location" also
+// covers the class Discourse generates by default from the button's id,
+// besides the explicit class assigned at registration time.
 .d-editor-button-bar {
   .discourse-maps-location-btn,
   .discourse-maps-location {
