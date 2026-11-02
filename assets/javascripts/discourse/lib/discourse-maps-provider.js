@@ -160,26 +160,32 @@ async function ensureGoogle(apiKey, language) {
 //  returns, besides the coordinates, the structured components from which
 //  we extract the country (used by the /map page's country filter).
 //
-//  The country name is NOT taken as-is from the provider's response: the
-//  language of that string depends on the language of the typed address
-//  and on the request's preferences (e.g. "Italy" if the user writes
-//  "... bologna italy"), which would create duplicates in the country
-//  filter ("Italia" / "Italy"). Instead we take the country's ISO 3166-1
-//  alpha-2 code and translate it into the site's language with
-//  Intl.DisplayNames: the stored name is thus always canonical and in a
-//  single language.
+//  The country is identified by its ISO 3166-1 alpha-2 code
+//  (country_code), never by the provider's name string: the language of
+//  that string depends on the typed address and on the request's
+//  preferences (e.g. "Italy" if the user writes "... bologna italy"), so
+//  using it as the identity would split the same country across several
+//  entries of the /map filter ("Italia" / "Italy"). The name is derived
+//  from the code at display time (see localizedCountryName), so it stays
+//  in a single language even for topics saved under a different locale;
+//  the name returned here is only kept as a fallback for codes the
+//  browser can't resolve.
 // ===========================================================================
 
-// Site language (e.g. "it"), used for geocoding requests and for the
-// country name. Discourse's locale uses an underscore (e.g. "en_GB"), the
-// Intl constructors and the providers want a hyphen.
-function siteLocale(siteSettings) {
+/**
+ * Site language (e.g. "it"), used for geocoding requests, for the country
+ * name and for sorting it. Discourse's locale uses an underscore (e.g.
+ * "en_GB"), the Intl constructors and the providers want a hyphen.
+ * @param {Object} siteSettings - Discourse's site-settings service
+ * @returns {string}
+ */
+export function siteLocale(siteSettings) {
   return (siteSettings.default_locale || "en").replace("_", "-");
 }
 
 // Converts an ISO 3166-1 alpha-2 code (e.g. "IT") into the country name in
 // the given language (e.g. "Italia"). Returns null if the code is missing
-// or unrecognized, so the caller can fall back to the provider's name.
+// or unrecognized, so the caller can fall back to the stored name.
 function countryNameFromCode(code, locale) {
   if (!code) {
     return null;
@@ -190,8 +196,25 @@ function countryNameFromCode(code, locale) {
     // For unknown codes .of() returns the code itself.
     return name && name !== upper ? name : null;
   } catch {
+    // .of() throws a RangeError on anything that isn't a region code,
+    // which is also how a legacy value (a country name) is recognized.
     return null;
   }
+}
+
+/**
+ * Country name in the site's language for an ISO 3166-1 alpha-2 code.
+ * @param {?string} code - e.g. "IT"
+ * @param {Object} siteSettings - Discourse's site-settings service
+ * @returns {?string} e.g. "Italia", or null if the code isn't a known region
+ */
+export function localizedCountryName(code, siteSettings) {
+  return countryNameFromCode(code, siteLocale(siteSettings));
+}
+
+// ISO 3166-1 alpha-2 code as we store it: uppercase, or null.
+function normalizeCountryCode(code) {
+  return code ? code.toUpperCase() : null;
 }
 
 // Geocoding via the LocationIQ REST endpoint (supports CORS).
@@ -214,14 +237,14 @@ async function geocodeLocationIQ(query, apiKey, locale) {
     throw new Error("not_found");
   }
 
+  const code = normalizeCountryCode(data[0].address?.country_code);
+
   return {
     lat: parseFloat(data[0].lat),
     lng: parseFloat(data[0].lon),
     display_name: data[0].display_name,
-    country:
-      countryNameFromCode(data[0].address?.country_code, locale) ||
-      data[0].address?.country ||
-      null,
+    country_code: code,
+    country: countryNameFromCode(code, locale) || data[0].address?.country || null,
   };
 }
 
@@ -241,14 +264,14 @@ async function geocodeGoogle(query, apiKey, locale) {
         const countryComponent = results[0].address_components?.find((c) =>
           c.types.includes("country")
         );
+        const code = normalizeCountryCode(countryComponent?.short_name);
         resolve({
           lat: location.lat(),
           lng: location.lng(),
           display_name: results[0].formatted_address,
+          country_code: code,
           country:
-            countryNameFromCode(countryComponent?.short_name, locale) ||
-            countryComponent?.long_name ||
-            null,
+            countryNameFromCode(code, locale) || countryComponent?.long_name || null,
         });
       } else {
         reject(new Error(status || "not_found"));
@@ -262,7 +285,7 @@ async function geocodeGoogle(query, apiKey, locale) {
  * provider.
  * @param {string} query - full address entered by the user
  * @param {Object} siteSettings - Discourse's site-settings service
- * @returns {Promise<{lat:number, lng:number, display_name:string, country:?string}>}
+ * @returns {Promise<{lat:number, lng:number, display_name:string, country_code:?string, country:?string}>}
  */
 export async function geocodeAddress(query, siteSettings) {
   if (!query || !query.trim()) {

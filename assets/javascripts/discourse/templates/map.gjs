@@ -5,27 +5,25 @@
 //  component.
 // ============================================================================
 
-import RouteTemplate from "ember-route-template";
-import MapPage from "../components/map-page";
 
-export default RouteTemplate(
-  <template>
+import MapPage from "../components/map-page.gjs";
+
+export default <template>
     <MapPage
-      @topics={{@controller.model.topics}}
-      @filters={{@controller.model.filters}}
       @categoryId={{@controller.category_id}}
-      @selectedTags={{@controller.selectedTags}}
-      @countryName={{@controller.countryName}}
-      @year={{@controller.year}}
-      @month={{@controller.month}}
+      @countryCode={{@controller.countryCode}}
       @day={{@controller.day}}
+      @filters={{@controller.model.filters}}
+      @month={{@controller.month}}
       @onChangeCategory={{@controller.updateCategory}}
-      @onChangeTags={{@controller.updateTags}}
       @onChangeCountry={{@controller.updateCountry}}
-      @onChangeYear={{@controller.updateYear}}
-      @onChangeMonth={{@controller.updateMonth}}
       @onChangeDay={{@controller.updateDay}}
+      @onChangeMonth={{@controller.updateMonth}}
+      @onChangeTags={{@controller.updateTags}}
+      @onChangeYear={{@controller.updateYear}}
       @onResetDate={{@controller.resetDateFilter}}
+      @selectedTags={{@controller.selectedTags}}
+      @topics={{@controller.model.topics}}
+      @year={{@controller.year}}
     />
-  </template>
-);
+  </template>;

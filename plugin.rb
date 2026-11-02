@@ -39,7 +39,6 @@ register_svg_icon "angle-down"
 #  Server-side initialization block.
 # ----------------------------------------------------------------------------
 after_initialize do
-
   add_permitted_post_create_param("discourse_maps_location", :hash)
 
   # Makes these parameters survive in the ReviewableQueuedPost payload, so
@@ -55,12 +54,15 @@ after_initialize do
     PLUGIN_NAME = "discourse-maps"
 
     # Name of the topic custom field where we store the geographic data.
-    # Contains: { address, lat, lng, display_name, country, start_date,
-    # end_date }. "address" is the address typed by the user, the other
-    # geocoding fields are the provider's result (the country arrives
-    # already "interpreted", not hand-typed, to avoid different spellings
-    # for the same country). start_date/end_date ("YYYY-MM-DD") are the
-    # topic's reference period, also typed by the user in the modal.
+    # Contains: { address, lat, lng, display_name, country_code, country,
+    # start_date, end_date }. "address" is the address typed by the user,
+    # the other geocoding fields are the provider's result. The country is
+    # identified by "country_code" (ISO 3166-1 alpha-2): "country" is only
+    # the name as the provider returned it when the topic was saved, which
+    # depends on the locale in force at that moment, so it is never used as
+    # an identity (the client renders the name from the code instead).
+    # start_date/end_date ("YYYY-MM-DD") are the topic's reference period,
+    # also typed by the user in the modal.
     LOCATION_FIELD = "discourse_maps_location"
 
     # Returns the "map" tag configured in the admin panel (setting
@@ -124,39 +126,61 @@ after_initialize do
     # JSON custom field (LOCATION_FIELD), it's not a column: the
     # comparison must be done by reading and parsing the JSON, not with a
     # SQL where.
-    def self.filter_by_countries(scope, country_names)
-      scope.where(id: topic_ids_matching_countries(scope, country_names))
+    def self.filter_by_countries(scope, country_keys)
+      scope.where(id: topic_ids_matching_countries(scope, country_keys))
     end
 
-    def self.topic_ids_matching_countries(scope, country_names)
+    def self.topic_ids_matching_countries(scope, country_keys)
       TopicCustomField
         .where(topic_id: scope.distinct.pluck("topics.id"), name: LOCATION_FIELD)
         .pluck(:topic_id, :value)
-        .select { |_, value| country_names.include?(parse_country(value)) }
+        .select { |_, value| country_keys.include?(parse_country_key(value)) }
         .map(&:first)
     end
 
-    # (Sorted, de-duplicated) list of the countries present among the
-    # topics of the given scope.
+    # (De-duplicated) list of the countries present among the topics of the
+    # given scope, as { id, name } pairs whose id is the ISO 3166-1 alpha-2
+    # code. The name is the one stored at save time and is only a fallback:
+    # the client renders the code in the site's language, so the same
+    # country is a single entry even across topics saved under different
+    # locales.
     def self.countries_for_scope(scope)
-      names =
-        TopicCustomField
-          .where(topic_id: scope.distinct.pluck("topics.id"), name: LOCATION_FIELD)
-          .pluck(:value)
-          .map { |value| parse_country(value) }
-          .reject(&:blank?)
-          .uniq
-          .sort
-
-      names.map { |name| { id: name, name: name } }
+      TopicCustomField
+        .where(topic_id: scope.distinct.pluck("topics.id"), name: LOCATION_FIELD)
+        .pluck(:value)
+        .filter_map { |value| country_entry(value) }
+        .uniq { |entry| entry[:id] }
+        .sort_by { |entry| entry[:name] }
     end
 
-    # The custom field is stored as JSON: safely extracts the country (nil
-    # if the value is missing or not valid JSON).
-    def self.parse_country(raw_value)
+    # Country of a stored location, as the { id, name } pair the filter
+    # expects. Topics saved before country_code was introduced fall back to
+    # the stored name as their id, so they stay filterable until the
+    # backfill task (lib/tasks/discourse_maps.rake) gives them a code.
+    def self.country_entry(raw_value)
+      data = parse_location(raw_value)
+      return nil unless data
+
+      code = data["country_code"].presence&.upcase
+      name = data["country"].presence
+      return nil if code.blank? && name.blank?
+
+      { id: code || name, name: name || code }
+    end
+
+    # Identity of the country for a stored location: the ISO code, or the
+    # stored name for topics that don't have one yet.
+    def self.parse_country_key(raw_value)
+      country_entry(raw_value)&.fetch(:id)
+    end
+
+    # The custom field is stored as JSON: safely parses it (nil if the
+    # value is missing or not valid JSON).
+    def self.parse_location(raw_value)
       return nil if raw_value.blank?
 
-      JSON.parse(raw_value)["country"]
+      data = JSON.parse(raw_value)
+      data.is_a?(Hash) ? data : nil
     rescue JSON::ParserError
       nil
     end
@@ -168,15 +192,15 @@ after_initialize do
     # simply never show up in the date filters (they remain visible
     # without a filter).
     def self.parse_date_range(raw_value)
-      return nil if raw_value.blank?
+      data = parse_location(raw_value)
+      return nil unless data
 
-      data = JSON.parse(raw_value)
       start_date = data["start_date"]
       end_date = data["end_date"]
       return nil if start_date.blank? || end_date.blank?
 
       [Date.parse(start_date), Date.parse(end_date)]
-    rescue JSON::ParserError, ArgumentError, TypeError
+    rescue ArgumentError, TypeError
       nil
     end
 
@@ -244,10 +268,10 @@ after_initialize do
       TopicCustomField
         .where(topic_id: scope.distinct.pluck("topics.id"), name: LOCATION_FIELD)
         .pluck(:topic_id, :value)
-        .select { |_, value|
+        .select do |_, value|
           range = parse_date_range(value)
           range && range[0] <= filter_end && range[1] >= filter_start
-        }
+        end
         .map(&:first)
     end
 
@@ -274,13 +298,13 @@ after_initialize do
 
       months =
         date_ranges_for_scope(scope)
-          .flat_map { |start_date, end_date|
+          .flat_map do |start_date, end_date|
             clipped_start = [start_date, year_start].max
             clipped_end = [end_date, year_end].min
             next [] if clipped_start > clipped_end
 
             (clipped_start.month..clipped_end.month).to_a
-          }
+          end
           .uniq
           .sort
 
@@ -295,13 +319,13 @@ after_initialize do
 
       days =
         date_ranges_for_scope(scope)
-          .flat_map { |start_date, end_date|
+          .flat_map do |start_date, end_date|
             clipped_start = [start_date, month_start].max
             clipped_end = [end_date, month_end].min
             next [] if clipped_start > clipped_end
 
             (clipped_start.day..clipped_end.day).to_a
-          }
+          end
           .uniq
           .sort
 
@@ -316,12 +340,20 @@ after_initialize do
     #   - category_id   : shows only topics in the given category;
     #   - tag_names     : shows only topics that have ALL the given tags
     #                     (the "map" tag constraint is always applied);
-    #   - country_names : shows only topics whose address is in one of the
-    #                     given countries;
+    #   - country_keys  : shows only topics whose address is in one of the
+    #                     given countries (ISO 3166-1 alpha-2 codes);
     #   - year/month/day: shows only topics whose period (start/end)
     #                     overlaps the given period (year, year+month or
     #                     exact date depending on which are present).
-    def self.map_topics(guardian, category_id: nil, tag_names: [], country_names: [], year: nil, month: nil, day: nil)
+    def self.map_topics(
+      guardian,
+      category_id: nil,
+      tag_names: [],
+      country_keys: [],
+      year: nil,
+      month: nil,
+      day: nil
+    )
       base = base_map_scope(guardian)
       return [] unless base
 
@@ -334,7 +366,7 @@ after_initialize do
       scope = filter_by_tags(scope, tag_names) if tag_names.present?
 
       # Country filter.
-      scope = filter_by_countries(scope, country_names) if country_names.present?
+      scope = filter_by_countries(scope, country_keys) if country_keys.present?
 
       # Period filter.
       date_range = date_filter_range(year, month, day)
@@ -386,9 +418,19 @@ after_initialize do
     # depends on the chosen year, day on year+month): the options for a
     # more specific level are only calculated if the higher level is
     # already selected.
-    def self.map_filter_options(guardian, category_id: nil, tag_names: [], country_names: [], year: nil, month: nil, day: nil)
+    def self.map_filter_options(
+      guardian,
+      category_id: nil,
+      tag_names: [],
+      country_keys: [],
+      year: nil,
+      month: nil,
+      day: nil
+    )
       base = base_map_scope(guardian)
-      return { category_ids: [], tags: [], countries: [], years: [], months: [], days: [] } unless base
+      unless base
+        return({ category_ids: [], tags: [], countries: [], years: [], months: [], days: [] })
+      end
 
       scope = base[:scope]
       tag = base[:tag]
@@ -397,14 +439,15 @@ after_initialize do
       # Available categories: respect the tag, country and period filters already set.
       scope_for_categories = scope
       scope_for_categories = filter_by_tags(scope_for_categories, tag_names) if tag_names.present?
-      scope_for_categories = filter_by_countries(scope_for_categories, country_names) if country_names.present?
+      scope_for_categories =
+        filter_by_countries(scope_for_categories, country_keys) if country_keys.present?
       scope_for_categories = filter_by_date_range(scope_for_categories, *date_range) if date_range
       category_ids = scope_for_categories.distinct.pluck(:category_id).compact
 
       # Available tags: respect the category, country and period filters already set.
       scope_for_tags = scope
       scope_for_tags = scope_for_tags.where(category_id: category_id) if category_id.present?
-      scope_for_tags = filter_by_countries(scope_for_tags, country_names) if country_names.present?
+      scope_for_tags = filter_by_countries(scope_for_tags, country_keys) if country_keys.present?
       scope_for_tags = filter_by_date_range(scope_for_tags, *date_range) if date_range
 
       tag_ids =
@@ -414,11 +457,17 @@ after_initialize do
           .distinct
           .pluck(:tag_id)
 
-      tags = Tag.where(id: tag_ids).order(:name).pluck(:id, :name).map { |id, name| { id: id, name: name } }
+      tags =
+        Tag
+          .where(id: tag_ids)
+          .order(:name)
+          .pluck(:id, :name)
+          .map { |id, name| { id: id, name: name } }
 
       # Available countries: respect the category, tag and period filters already set.
       scope_for_countries = scope
-      scope_for_countries = scope_for_countries.where(category_id: category_id) if category_id.present?
+      scope_for_countries =
+        scope_for_countries.where(category_id: category_id) if category_id.present?
       scope_for_countries = filter_by_tags(scope_for_countries, tag_names) if tag_names.present?
       scope_for_countries = filter_by_date_range(scope_for_countries, *date_range) if date_range
       countries = countries_for_scope(scope_for_countries)
@@ -429,13 +478,27 @@ after_initialize do
       scope_for_dates = scope
       scope_for_dates = scope_for_dates.where(category_id: category_id) if category_id.present?
       scope_for_dates = filter_by_tags(scope_for_dates, tag_names) if tag_names.present?
-      scope_for_dates = filter_by_countries(scope_for_dates, country_names) if country_names.present?
+      scope_for_dates = filter_by_countries(scope_for_dates, country_keys) if country_keys.present?
 
       years = years_for_scope(scope_for_dates)
       months = year.present? ? months_for_scope(scope_for_dates, year.to_i) : []
-      days = (year.present? && month.present?) ? days_for_scope(scope_for_dates, year.to_i, month.to_i) : []
+      days =
+        (
+          if year.present? && month.present?
+            days_for_scope(scope_for_dates, year.to_i, month.to_i)
+          else
+            []
+          end
+        )
 
-      { category_ids: category_ids, tags: tags, countries: countries, years: years, months: months, days: days }
+      {
+        category_ids: category_ids,
+        tags: tags,
+        countries: countries,
+        years: years,
+        months: months,
+        days: days,
+      }
     end
   end
 
@@ -457,8 +520,9 @@ after_initialize do
   NewPostManager.add_handler do |manager|
     location = manager.args[:discourse_maps_location] || manager.args["discourse_maps_location"]
 
-    if manager.args[:topic_id].blank? && location.present? && !::DiscourseMaps.valid_location_dates?(location)
-      next manager.create_error_result(I18n.t("discourse_maps.errors.missing_dates"))
+    if manager.args[:topic_id].blank? && location.present? &&
+         !::DiscourseMaps.valid_location_dates?(location)
+      next(manager.create_error_result(I18n.t("discourse_maps.errors.missing_dates")))
     end
 
     nil
@@ -538,14 +602,14 @@ after_initialize do
         # by any category/tag filters passed as query parameters.
         format.json do
           tag_names = Array(params[:tags]&.split(","))
-          country_names = Array(params[:countries]&.split(","))
+          country_keys = Array(params[:countries]&.split(","))
 
           topics =
             ::DiscourseMaps.map_topics(
               guardian,
               category_id: params[:category_id],
               tag_names: tag_names,
-              country_names: country_names,
+              country_keys: country_keys,
               year: params[:year],
               month: params[:month],
               day: params[:day],
@@ -555,7 +619,7 @@ after_initialize do
               guardian,
               category_id: params[:category_id],
               tag_names: tag_names,
-              country_names: country_names,
+              country_keys: country_keys,
               year: params[:year],
               month: params[:month],
               day: params[:day],
@@ -570,4 +634,3 @@ after_initialize do
   # Registers the /map route (serves both the HTML and /map.json).
   Discourse::Application.routes.append { get "/map" => "discourse_maps/map#index" }
 end
-

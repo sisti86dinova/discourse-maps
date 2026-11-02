@@ -15,7 +15,9 @@ export default class MapController extends Controller {
   category_id = null;
   // Selected tags are stored as a CSV string (e.g. "events,news").
   tags = null;
-  // Selected countries are stored as a CSV string.
+  // Selected countries are stored as a CSV string of ISO 3166-1 alpha-2
+  // codes (e.g. "IT"): the name shown in the filter is derived from the
+  // code, so the URL doesn't depend on the site's language.
   countries = null;
   // Period filter: year, month (1-12) and day, hierarchical (month only
   // makes sense with a year selected, day only with year+month). On the
@@ -41,7 +43,7 @@ export default class MapController extends Controller {
   // Currently selected country (single filter, like the category). Same
   // reason as above for the explicit @computed("countries").
   @computed("countries")
-  get countryName() {
+  get countryCode() {
     return this.countries ? this.countries.split(",")[0] : null;
   }
 
@@ -59,8 +61,8 @@ export default class MapController extends Controller {
 
   // Updates the country filter.
   @action
-  updateCountry(countryName) {
-    this.set("countries", countryName || null);
+  updateCountry(countryCode) {
+    this.set("countries", countryCode || null);
   }
 
   // Updates the year filter. Changing the year potentially invalidates

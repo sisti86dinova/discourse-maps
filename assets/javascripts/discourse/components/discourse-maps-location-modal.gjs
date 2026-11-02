@@ -10,13 +10,13 @@
 
 import Component from "@glimmer/component";
 import { tracked } from "@glimmer/tracking";
-import { action } from "@ember/object";
 import { on } from "@ember/modifier";
+import { action } from "@ember/object";
 import { service } from "@ember/service";
-import DButton from "discourse/components/d-button";
-import DModal from "discourse/components/d-modal";
+import DButton from "discourse/ui-kit/d-button";
+import DModal from "discourse/ui-kit/d-modal";
 import { i18n } from "discourse-i18n";
-import { geocodeAddress } from "../lib/discourse-maps-provider";
+import { geocodeAddress } from "../lib/discourse-maps-provider.js";
 
 export default class DiscourseMapsLocationModal extends Component {
   @service composer;
@@ -92,12 +92,15 @@ export default class DiscourseMapsLocationModal extends Component {
 
       // We save the typed address + the geocoding result (coordinates,
       // formatted address, country) + the reference period on the
-      // composer's model.
+      // composer's model. country_code is what identifies the country in
+      // the /map filter; country is only the name at save time, kept as a
+      // fallback for codes the browser can't resolve.
       this.composer.model.set("discourse_maps_location", {
         address: this.address,
         lat: result.lat,
         lng: result.lng,
         display_name: result.display_name,
+        country_code: result.country_code,
         country: result.country,
         start_date: this.startDate,
         end_date: this.endDate,
@@ -124,17 +127,17 @@ export default class DiscourseMapsLocationModal extends Component {
 
   <template>
     <DModal
-      @title={{i18n "discourse_maps.modal.title"}}
-      @closeModal={{@closeModal}}
       class="discourse-maps-modal"
+      @closeModal={{@closeModal}}
+      @title={{i18n "discourse_maps.modal.title"}}
     >
       <:body>
         <form class="discourse-maps-form">
           <div class="control-group">
             <label>{{i18n "discourse_maps.modal.fields.address"}}</label>
             <input
-              type="text"
               placeholder={{i18n "discourse_maps.modal.fields.address_placeholder"}}
+              type="text"
               value={{this.address}}
               {{on "input" this.updateAddress}}
             />
@@ -170,10 +173,10 @@ export default class DiscourseMapsLocationModal extends Component {
 
       <:footer>
         <DButton
-          @action={{this.save}}
-          @label="discourse_maps.modal.save"
-          @isLoading={{this.loading}}
           class="btn-primary"
+          @action={{this.save}}
+          @isLoading={{this.loading}}
+          @label="discourse_maps.modal.save"
         />
         <DButton
           @action={{this.remove}}
