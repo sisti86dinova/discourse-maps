@@ -27,6 +27,9 @@ it:
         button_title: "Aggiungi una posizione alla mappa"
       modal:
         title: "Posizione del post"
+        preview: "Verifica indirizzo"
+        preview_label: "Anteprima"
+        edit_address: "Modifica indirizzo"
         save: "Salva posizione"
         remove: "Rimuovi posizione"
         cancel: "Annulla"

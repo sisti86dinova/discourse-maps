@@ -27,6 +27,9 @@ en:
         button_title: "Add a location to the map"
       modal:
         title: "Topic location"
+        preview: "Preview address"
+        preview_label: "Preview"
+        edit_address: "Edit address"
         save: "Save location"
         remove: "Remove location"
         cancel: "Cancel"

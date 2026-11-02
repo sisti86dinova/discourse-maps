@@ -6,6 +6,13 @@
 //  (LocationIQ or Google) that interprets it, returning coordinates,
 //  formatted address and country. We save the result on the composer's
 //  model, so it can be sent to the server on topic creation.
+//
+//  The geocoded point is shown as a map preview (with the matched
+//  address below it) before it's actually saved: the provider sometimes
+//  mismatches an address to a same-named place elsewhere in the world
+//  (e.g. a village called "Parigi" in India instead of Paris, France),
+//  and without a visual check that only surfaces once the topic is
+//  already on the map, pin in the wrong place.
 // ============================================================================
 
 import Component from "@glimmer/component";
@@ -17,6 +24,7 @@ import DButton from "discourse/ui-kit/d-button";
 import DModal from "discourse/ui-kit/d-modal";
 import { i18n } from "discourse-i18n";
 import { geocodeAddress } from "../lib/discourse-maps-provider.js";
+import DiscourseMapsStaticMap from "./discourse-maps-static-map.gjs";
 
 export default class DiscourseMapsLocationModal extends Component {
   @service composer;
@@ -36,6 +44,12 @@ export default class DiscourseMapsLocationModal extends Component {
   @tracked loading = false;
   @tracked errorKey = null;
 
+  // Result of the last successful geocoding ({ lat, lng, display_name,
+  // country_code, country }), shown as a map preview the user must
+  // confirm before it's actually saved. Cleared whenever the address
+  // text changes, since it would no longer match what's previewed.
+  @tracked geocodeResult = null;
+
   constructor() {
     super(...arguments);
 
@@ -54,6 +68,13 @@ export default class DiscourseMapsLocationModal extends Component {
       this.address = existing.address ?? existing.display_name ?? "";
       this.startDate = existing.start_date ?? "";
       this.endDate = existing.end_date ?? "";
+
+      // The coordinates are already known (no geocoding call needed):
+      // shows the preview right away, for a visual check of a location
+      // set earlier, without requiring the address to be re-verified.
+      if (existing.lat != null && existing.lng != null) {
+        this.geocodeResult = existing;
+      }
     }
   }
 
@@ -65,6 +86,9 @@ export default class DiscourseMapsLocationModal extends Component {
   @action
   updateAddress(event) {
     this.address = event.target.value;
+    // The previous preview no longer matches the edited address: the
+    // user must verify it again before being able to confirm.
+    this.geocodeResult = null;
   }
 
   @action
@@ -77,13 +101,18 @@ export default class DiscourseMapsLocationModal extends Component {
     this.endDate = event.target.value;
   }
 
-  // Performs the geocoding and saves the location on the composer's model.
+  // Geocodes the typed address and shows the result as a map preview
+  // (see @geocodeResult), instead of saving it right away: the provider
+  // can mismatch an address to a same-named place elsewhere in the
+  // world, and this is the only point where that's still cheap to catch.
   @action
-  async save() {
+  async preview() {
     this.errorKey = null;
 
     // The dates are as required as the address: without them, the topic
-    // could never show up in the /map page's date filters.
+    // could never show up in the /map page's date filters. Checked here
+    // rather than only in confirm(), so the user isn't led to verify the
+    // address just to be stopped by a missing date right after.
     if (!this.startDate || !this.endDate) {
       this.errorKey = "missing_dates";
       return;
@@ -97,25 +126,7 @@ export default class DiscourseMapsLocationModal extends Component {
     this.loading = true;
 
     try {
-      const result = await geocodeAddress(this.address, this.siteSettings);
-
-      // We save the typed address + the geocoding result (coordinates,
-      // formatted address, country) + the reference period on the
-      // composer's model. country_code is what identifies the country in
-      // the /map filter; country is only the name at save time, kept as a
-      // fallback for codes the browser can't resolve.
-      this.composer.model.set("discourse_maps_location", {
-        address: this.address,
-        lat: result.lat,
-        lng: result.lng,
-        display_name: result.display_name,
-        country_code: result.country_code,
-        country: result.country,
-        start_date: this.startDate,
-        end_date: this.endDate,
-      });
-
-      this.args.closeModal();
+      this.geocodeResult = await geocodeAddress(this.address, this.siteSettings);
     } catch (error) {
       // "not_found"/"empty_address" have dedicated messages, everything else is generic.
       this.errorKey =
@@ -125,6 +136,37 @@ export default class DiscourseMapsLocationModal extends Component {
     } finally {
       this.loading = false;
     }
+  }
+
+  // Discards the previewed result to let the user adjust the address,
+  // without losing the dates already entered.
+  @action
+  editAddress() {
+    this.geocodeResult = null;
+    this.errorKey = null;
+  }
+
+  // Saves the previewed location (confirmed by the user) on the
+  // composer's model.
+  @action
+  confirm() {
+    // We save the typed address + the geocoding result (coordinates,
+    // formatted address, country) + the reference period on the
+    // composer's model. country_code is what identifies the country in
+    // the /map filter; country is only the name at save time, kept as a
+    // fallback for codes the browser can't resolve.
+    this.composer.model.set("discourse_maps_location", {
+      address: this.address,
+      lat: this.geocodeResult.lat,
+      lng: this.geocodeResult.lng,
+      display_name: this.geocodeResult.display_name,
+      country_code: this.geocodeResult.country_code,
+      country: this.geocodeResult.country,
+      start_date: this.startDate,
+      end_date: this.endDate,
+    });
+
+    this.args.closeModal();
   }
 
   // Removes the location associated with the topic, if any.
@@ -177,16 +219,38 @@ export default class DiscourseMapsLocationModal extends Component {
               {{this.errorMessage}}
             </div>
           {{/if}}
+
+          {{#if this.geocodeResult}}
+            <div class="control-group discourse-maps-form__preview">
+              <label>{{i18n "discourse_maps.modal.preview_label"}}</label>
+              <DiscourseMapsStaticMap @location={{this.geocodeResult}} />
+              <p class="discourse-maps-form__preview-address">
+                {{this.geocodeResult.display_name}}
+              </p>
+            </div>
+          {{/if}}
         </form>
       </:body>
 
       <:footer>
-        <DButton
-          class="btn-primary"
-          @action={{this.save}}
-          @isLoading={{this.loading}}
-          @label="discourse_maps.modal.save"
-        />
+        {{#if this.geocodeResult}}
+          <DButton
+            class="btn-primary"
+            @action={{this.confirm}}
+            @label="discourse_maps.modal.save"
+          />
+          <DButton
+            @action={{this.editAddress}}
+            @label="discourse_maps.modal.edit_address"
+          />
+        {{else}}
+          <DButton
+            class="btn-primary"
+            @action={{this.preview}}
+            @isLoading={{this.loading}}
+            @label="discourse_maps.modal.preview"
+          />
+        {{/if}}
         <DButton
           @action={{this.remove}}
           @label="discourse_maps.modal.remove"

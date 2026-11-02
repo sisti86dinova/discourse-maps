@@ -633,6 +633,21 @@
   &__error {
     margin-top: 0.75em;
   }
+
+  // Map preview of the geocoded address: shrunk well below
+  // .discourse-maps-static's own responsive heights, which are sized for
+  // a full-width topic/page layout, not a field inside this modal.
+  &__preview {
+    .discourse-maps-static {
+      height: 180px;
+    }
+  }
+
+  &__preview-address {
+    margin: 0.5em 0 0;
+    color: var(--primary-medium);
+    font-size: var(--font-down-1);
+  }
 }
 
 .leaflet-popup-content {
