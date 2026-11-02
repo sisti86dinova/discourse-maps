@@ -41,6 +41,14 @@ register_svg_icon "angle-down"
 after_initialize do
   add_permitted_post_create_param("discourse_maps_location", :hash)
 
+  # Lets the location be set, corrected or removed by editing the topic's
+  # first post, instead of only at creation time (see
+  # DiscourseMaps.update_map_metadata below): without this, fixing a wrong
+  # address meant deleting the post and recreating it.
+  add_permitted_post_update_param("discourse_maps_location") do |post, location|
+    ::DiscourseMaps.update_map_metadata(post, location)
+  end
+
   # Makes these parameters survive in the ReviewableQueuedPost payload, so
   # they can be retrieved in on(:approved_post) when a post from a
   # not-yet-approved user is put in the moderation queue and the actual
@@ -88,6 +96,43 @@ after_initialize do
       tag = map_tag
       if tag && topic.tags.exclude?(tag)
         topic.tags << tag
+        topic.save!
+      end
+    end
+
+    # Applies a location change made while editing the topic's first post
+    # (see add_permitted_post_update_param above): a present location
+    # overwrites the custom field, after validating its period like on
+    # creation; a blank one removes it entirely, together with the "map"
+    # tag (the only way to drop it, since the tag group is staff-only and
+    # the tag selector hides it from the composer). Silently ignored for a
+    # reply (only the first post carries a location) or for a malformed
+    # location (missing/invalid dates) coming from a non-compliant client:
+    # the modal's own required fields prevent this through normal use,
+    # same reasoning as the creation-time check in NewPostManager.add_handler
+    # below.
+    def self.update_map_metadata(post, location)
+      return unless post.is_first_post?
+
+      location = location.to_unsafe_h if location.respond_to?(:to_unsafe_h)
+      topic = post.topic
+
+      if location.blank?
+        remove_map_metadata(topic)
+      elsif valid_location_dates?(location)
+        apply_map_metadata(topic, location, nil)
+      end
+    end
+
+    # Removes the location and the "map" tag from a topic: the reverse of
+    # apply_map_metadata, used when a location is unset while editing.
+    def self.remove_map_metadata(topic)
+      topic.custom_fields.delete(LOCATION_FIELD)
+      topic.save_custom_fields(true)
+
+      tag = map_tag
+      if tag && topic.tags.include?(tag)
+        topic.tags = topic.tags - [tag]
         topic.save!
       end
     end

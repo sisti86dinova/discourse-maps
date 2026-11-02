@@ -638,24 +638,3 @@
 .leaflet-popup-content {
   margin: 12px 18px 12px 12px;
 }
-
-// "Geolocate" button in the composer toolbar: must only show up in the
-// editor used to create a new post from the /map page, not in the
-// editors elsewhere on the site. The body only gets the
-// "discourse-maps-page-active" class while on that page (see
-// api.onPageChange in the initializer); ".discourse-maps-location" also
-// covers the class Discourse generates by default from the button's id,
-// besides the explicit class assigned at registration time.
-.d-editor-button-bar {
-  .discourse-maps-location-btn,
-  .discourse-maps-location {
-    display: none !important;
-  }
-}
-
-body.discourse-maps-page-active .d-editor-button-bar {
-  .discourse-maps-location-btn,
-  .discourse-maps-location {
-    display: inline-flex !important;
-  }
-}

@@ -37,19 +37,6 @@ export default {
         document.head.appendChild(style);
       }
 
-      // --- Geolocation icon visible only on /map ----------------------------
-      // The toolbar button (below) is global: it would show up in any
-      // editor on the site. We add/remove a class on the <body> on every
-      // page change, so the CSS (discourse-maps.scss) can hide the
-      // button everywhere except when this class is present, without
-      // having to tell where the composer was opened from.
-      api.onPageChange((url) => {
-        document.body.classList.toggle(
-          "discourse-maps-page-active",
-          url.startsWith("/map")
-        );
-      });
-
       // --- Link to the /map page in the sidebar -----------------------------
       api.addCommunitySectionLink({
         name: "discourse-maps",
@@ -67,6 +54,10 @@ export default {
         "discourse_maps_location",
         "topic.discourse_maps_location"
       );
+      // ...and also when editing the first post, so a correction or a
+      // removal (modal's "Remove location" sets it to null) reaches the
+      // server (see add_permitted_post_update_param in plugin.rb).
+      api.serializeOnUpdate("discourse_maps_location");
 
       // Sends "discourse_maps_from_map" when the topic was opened from the
       // "New topic" button on the /map page (see map-page.gjs): the
@@ -75,16 +66,25 @@ export default {
       api.serializeOnCreate("discourse_maps_from_map");
 
       // --- Button in the composer toolbar -----------------------------
+      // Shown only in the two editors where a location makes sense:
+      // creating a new topic from the /map page's "New topic" button
+      // (flagged by discourse_maps_from_map, set in map-page.gjs), and
+      // editing the first post of a topic that already has one (lets a
+      // wrong address be corrected, or the location removed entirely,
+      // without deleting and recreating the post).
       api.onToolbarCreate((toolbar) => {
         toolbar.addButton({
           id: "discourse-maps-location",
           group: "extras",
           icon: "location-dot",
           title: "discourse_maps.composer.button_title",
-          // Explicit class used by the CSS to hide the button outside
-          // /map (see api.onPageChange above), instead of relying on the
-          // class Discourse generates by default for the button id.
-          className: "discourse-maps-location-btn",
+          condition: () => {
+            const model = api.container.lookup("service:composer")?.model;
+            return Boolean(
+              model?.discourse_maps_from_map ||
+                (model?.editingFirstPost && model?.topic?.discourse_maps_location)
+            );
+          },
           action: () => {
             const modal = api.container.lookup("service:modal");
             modal.show(DiscourseMapsLocationModal);

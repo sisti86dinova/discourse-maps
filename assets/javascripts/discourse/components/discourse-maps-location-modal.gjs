@@ -39,8 +39,17 @@ export default class DiscourseMapsLocationModal extends Component {
   constructor() {
     super(...arguments);
 
-    // Retrieves a location already saved on the composer, if any, for editing.
-    const existing = this.composer?.model?.discourse_maps_location;
+    // Prefills from the location already on the composer model, if this
+    // session already touched it (set or removed: an explicit null means
+    // the user just removed it, and must NOT fall back to the topic's
+    // saved value below). Otherwise, when editing the first post of an
+    // already geolocated topic, falls back to the one saved on the topic.
+    const modelLocation = this.composer?.model?.discourse_maps_location;
+    const existing =
+      modelLocation !== undefined
+        ? modelLocation
+        : this.composer?.model?.topic?.discourse_maps_location;
+
     if (existing) {
       this.address = existing.address ?? existing.display_name ?? "";
       this.startDate = existing.start_date ?? "";
