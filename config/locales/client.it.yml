@@ -6,6 +6,7 @@ it:
       list:
         empty: "Nessun topic geolocalizzato al momento."
         empty_today: "Nessun topic geolocalizzato disponibile per la data di oggi."
+        empty_upcoming: "Nessun topic geolocalizzato in programma da oggi in poi."
       popup:
         category: "Categoria:"
         tags: "Tags:"
@@ -18,6 +19,7 @@ it:
         all_days: "Giorno"
         date_placeholder: "Qualsiasi data"
         date_today: "Oggi"
+        date_upcoming: "Da oggi in poi"
         date_any_year: "Tutti gli anni"
         date_close: "Chiudi"
         reset: "Rimuovi filtri"

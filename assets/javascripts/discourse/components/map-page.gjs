@@ -24,6 +24,10 @@
 //    @year/@month/@day - currently selected period (filter, hierarchical:
 //                       month only makes sense with a year, day only with
 //                       year+month).
+//    @upcoming        - true shows every topic whose period hasn't ended
+//                       yet (today onward), with no year/month/day set;
+//                       mutually exclusive with them (see updateYear in
+//                       controllers/map.js).
 //    @onChangeCategory - callback(categoryId) when the category filter changes.
 //    @onChangeTags     - callback(tags[]) when the tag filter changes.
 //    @onChangeCountry  - callback(countryCode) when the country filter changes.
@@ -273,14 +277,15 @@ export default class MapPage extends Component {
       Boolean(this.args.categoryId) ||
       Boolean(this.args.selectedTags && this.args.selectedTags.length) ||
       Boolean(this.args.countryCode) ||
-      Boolean(this.args.year)
+      Boolean(this.args.year) ||
+      Boolean(this.args.upcoming)
     );
   }
 
   // How many filters are active: shown on the mobile toggle button, so
   // the user knows filters are applied even with the block closed. The
-  // period (year/month/day) counts as a single filter, regardless of its
-  // level of detail.
+  // period (year/month/day, or upcoming) counts as a single filter,
+  // regardless of its level of detail.
   get activeFilterCount() {
     let count = 0;
     if (this.args.categoryId) {
@@ -292,7 +297,7 @@ export default class MapPage extends Component {
     if (this.args.countryCode) {
       count++;
     }
-    if (this.args.year) {
+    if (this.args.year || this.args.upcoming) {
       count++;
     }
     return count;
@@ -404,6 +409,14 @@ export default class MapPage extends Component {
       Number(month) === today.getMonth() + 1 &&
       Number(day) === today.getDate()
     );
+  }
+
+  // True when the "upcoming" (today onward, no end date) period is in
+  // effect: the other possible default on the very first page load (see
+  // routes/map.js), used for the "From today onwards" label of the date
+  // filter and for the dedicated empty-list message.
+  get isUpcomingFilter() {
+    return Boolean(this.args.upcoming) && !this.args.year;
   }
 
   // Only topics with a valid location (for the map and the list). The
@@ -629,6 +642,7 @@ export default class MapPage extends Component {
           @availableYears={{this.availableYears}}
           @day={{this.selectedDay}}
           @isToday={{this.isTodayFilter}}
+          @isUpcoming={{this.isUpcomingFilter}}
           @month={{this.selectedMonth}}
           @onSelectDay={{this.handleDayChange}}
           @onSelectMonth={{this.handleMonthChange}}
@@ -732,6 +746,8 @@ export default class MapPage extends Component {
           <p class="discourse-maps-list__empty">
             {{#if this.isTodayFilter}}
               {{i18n "discourse_maps.list.empty_today"}}
+            {{else if this.isUpcomingFilter}}
+              {{i18n "discourse_maps.list.empty_upcoming"}}
             {{else}}
               {{i18n "discourse_maps.list.empty"}}
             {{/if}}

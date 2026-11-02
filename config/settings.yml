@@ -31,6 +31,19 @@ plugins:
     type: color
     default: "0088CC"
 
+  # Period shown on /map before any filter is manually picked (see
+  # routes/map.js): "today" only shows today's events, "upcoming" shows
+  # today's and every future one (no upper bound), leaving past events
+  # out either way. Read client-side only; the server just receives
+  # whichever year/month/day (or "upcoming") the route ends up requesting.
+  discourse_maps_default_date_filter:
+    type: enum
+    default: "today"
+    client: true
+    choices:
+      - "today"
+      - "upcoming"
+
   # --------------------------------------------------------------------------
   #  Map and geocoding provider.
   #  The plugin supports two interchangeable providers:

@@ -13,6 +13,10 @@
 //                              parameters (not sanitized based on
 //                              @availableDays' availability): used to
 //                              show "Today" instead of the date.
+//    @isUpcoming             - true when the page's "upcoming" (today
+//                              onward, no end date) period is in effect
+//                              instead of a specific year/month/day: used
+//                              to show "From today onwards" as the label.
 //    @availableYears         - [{id, name}] years with geolocated topics.
 //    @availableMonths        - [{id, name}] months available for @year
 //                              (name already localized, see map-page.gjs).
@@ -72,7 +76,9 @@ export default class DiscourseMapsDateFilter extends Component {
   get triggerLabel() {
     const { year, month, day } = this.args;
     if (!year) {
-      return i18n("discourse_maps.filters.date_placeholder");
+      return this.args.isUpcoming
+        ? i18n("discourse_maps.filters.date_upcoming")
+        : i18n("discourse_maps.filters.date_placeholder");
     }
 
     if (this.args.isToday) {

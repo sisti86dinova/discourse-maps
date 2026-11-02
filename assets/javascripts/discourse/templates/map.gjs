@@ -24,6 +24,7 @@ export default <template>
       @onResetDate={{@controller.resetDateFilter}}
       @selectedTags={{@controller.selectedTags}}
       @topics={{@controller.model.topics}}
+      @upcoming={{@controller.upcoming}}
       @year={{@controller.year}}
     />
   </template>;

@@ -6,6 +6,7 @@ en:
       list:
         empty: "No geolocated topics yet."
         empty_today: "No geolocated topics available for today's date."
+        empty_upcoming: "No geolocated topics scheduled from today onwards."
       popup:
         category: "Category:"
         tags: "Tags:"
@@ -18,6 +19,7 @@ en:
         all_days: "Day"
         date_placeholder: "Any date"
         date_today: "Today"
+        date_upcoming: "From today onwards"
         date_any_year: "All years"
         date_close: "Close"
         reset: "Clear filters"

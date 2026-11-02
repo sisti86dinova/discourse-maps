@@ -12,6 +12,7 @@ import { i18n } from "discourse-i18n";
 
 export default class MapRoute extends DiscourseRoute {
   @service router;
+  @service siteSettings;
 
   // Filters are query params: when they change, we reload the data from the server.
   queryParams = {
@@ -21,6 +22,7 @@ export default class MapRoute extends DiscourseRoute {
     year: { refreshModel: true },
     month: { refreshModel: true },
     day: { refreshModel: true },
+    upcoming: { refreshModel: true },
   };
 
   // Becomes true after the first entry into the route in this visit: reset
@@ -31,16 +33,17 @@ export default class MapRoute extends DiscourseRoute {
 
   model(params, transition) {
     // First entry into the page in this visit, with no explicit date
-    // filter in the URL: we default-filter on today's date, to avoid
-    // showing all geolocated topics at once (potentially thousands). The
-    // redirect (with the resulting new call to model(), this time with
+    // filter in the URL: we default-filter the list, to avoid showing
+    // all geolocated topics at once (potentially thousands). Which
+    // default applies - today only, or today and every future event - is
+    // the discourse_maps_default_date_filter site setting. The redirect
+    // (with the resulting new call to model(), this time with
     // dateDefaultApplied already true) entirely replaces this first
     // pass's ajax request.
     if (!this.dateDefaultApplied) {
       this.dateDefaultApplied = true;
 
-      if (!params.year && !params.month && !params.day) {
-        const today = new Date();
+      if (!params.year && !params.month && !params.day && !params.upcoming) {
         // The redirect targets the same route, only changing the query
         // params: without explicitly aborting the ongoing transition, the
         // router throws an internal TypeError ("Cannot read properties of
@@ -48,13 +51,19 @@ export default class MapRoute extends DiscourseRoute {
         // current route hasn't been finalized yet when we try to replace
         // it (known Ember bug, see emberjs/ember.js#18577).
         transition.abort();
-        this.router.replaceWith("map", {
-          queryParams: {
-            year: today.getFullYear(),
-            month: today.getMonth() + 1,
-            day: today.getDate(),
-          },
-        });
+
+        if (this.siteSettings.discourse_maps_default_date_filter === "upcoming") {
+          this.router.replaceWith("map", { queryParams: { upcoming: true } });
+        } else {
+          const today = new Date();
+          this.router.replaceWith("map", {
+            queryParams: {
+              year: today.getFullYear(),
+              month: today.getMonth() + 1,
+              day: today.getDate(),
+            },
+          });
+        }
         return;
       }
     }
@@ -79,6 +88,9 @@ export default class MapRoute extends DiscourseRoute {
     if (params.day) {
       data.day = params.day;
     }
+    if (params.upcoming) {
+      data.upcoming = true;
+    }
 
     return ajax("/map.json", { data });
   }
@@ -98,6 +110,7 @@ export default class MapRoute extends DiscourseRoute {
       controller.set("year", null);
       controller.set("month", null);
       controller.set("day", null);
+      controller.set("upcoming", null);
       this.dateDefaultApplied = false;
     }
   }

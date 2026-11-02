@@ -10,7 +10,15 @@ import { action, computed } from "@ember/object";
 
 export default class MapController extends Controller {
   // Query params synced with the URL.
-  queryParams = ["category_id", "tags", "countries", "year", "month", "day"];
+  queryParams = [
+    "category_id",
+    "tags",
+    "countries",
+    "year",
+    "month",
+    "day",
+    "upcoming",
+  ];
 
   category_id = null;
   // Selected tags are stored as a CSV string (e.g. "events,news").
@@ -21,11 +29,18 @@ export default class MapController extends Controller {
   countries = null;
   // Period filter: year, month (1-12) and day, hierarchical (month only
   // makes sense with a year selected, day only with year+month). On the
-  // very first page load the route sets them to today's date (see
-  // routes/map.js), to avoid showing all geolocated topics at once.
+  // very first page load the route applies the default from the
+  // discourse_maps_default_date_filter site setting (see routes/map.js),
+  // to avoid showing all geolocated topics at once: either today's exact
+  // date (year/month/day) or, with no upper bound, "upcoming".
   year = null;
   month = null;
   day = null;
+  // Mutually exclusive with year/month/day: true shows every topic whose
+  // period hasn't ended yet (today onward), with no specific date chosen.
+  // Picking an explicit year (including "any year") always clears it,
+  // same as how it clears month/day (see updateYear below).
+  upcoming = null;
 
   // Array of selected tags (convenient for the tag chooser).
   //
@@ -68,12 +83,16 @@ export default class MapController extends Controller {
   // Updates the year filter. Changing the year potentially invalidates
   // the already-selected month and day (they might not exist as options
   // for the new year): we always clear them, the user reselects them if
-  // needed.
+  // needed. Also clears "upcoming" (including when year is cleared to
+  // null, i.e. the picker's "Any year"): interacting with the year
+  // picker at all means the user is now manually managing the period,
+  // so the page's default floor no longer applies.
   @action
   updateYear(year) {
     this.set("year", year || null);
     this.set("month", null);
     this.set("day", null);
+    this.set("upcoming", null);
   }
 
   // Updates the month filter. Same reasoning as updateYear for the day.
@@ -90,13 +109,14 @@ export default class MapController extends Controller {
   }
 
   // Clears the period filter (used by the "Remove filters" button): no
-  // year/month/day selected, so all geolocated topics with no date
-  // filter, consistent with category/tag/country being cleared the same
-  // way by the same button.
+  // year/month/day/upcoming selected, so all geolocated topics with no
+  // date filter, consistent with category/tag/country being cleared the
+  // same way by the same button.
   @action
   resetDateFilter() {
     this.set("year", null);
     this.set("month", null);
     this.set("day", null);
+    this.set("upcoming", null);
   }
 }

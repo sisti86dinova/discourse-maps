@@ -73,6 +73,12 @@ after_initialize do
     # also typed by the user in the modal.
     LOCATION_FIELD = "discourse_maps_location"
 
+    # Practical stand-in for "no upper bound", used by the "upcoming"
+    # period filter (see date_filter_range below): a real event starting
+    # this far out would be a data entry mistake, not a legitimate
+    # open-ended range to support.
+    FAR_FUTURE_DATE = Date.new(9999, 12, 31)
+
     # Returns the "map" tag configured in the admin panel (setting
     # `discourse_maps_map_tag_id`), or nil if it doesn't exist.
     def self.map_tag
@@ -268,9 +274,14 @@ after_initialize do
 
     # Converts the (possibly partial) year/month/day filter parameters
     # into the corresponding date range, used for the "overlap" comparison
-    # with each topic's period. nil if the year isn't given (no date
-    # filter) or if the combination isn't a valid date.
-    def self.date_filter_range(year, month, day)
+    # with each topic's period. nil if neither a year nor `upcoming` is
+    # given (no date filter) or if the year/month/day combination isn't a
+    # valid date. `upcoming` (today onward, no upper bound) only applies
+    # when no year is given: an explicit year/month/day always wins, same
+    # as a user picking a date overriding the page's default on open (see
+    # routes/map.js).
+    def self.date_filter_range(year, month, day, upcoming: false)
+      return Date.current, FAR_FUTURE_DATE if year.blank? && upcoming
       return nil if year.blank?
 
       year = year.to_i
@@ -389,7 +400,12 @@ after_initialize do
     #                     given countries (ISO 3166-1 alpha-2 codes);
     #   - year/month/day: shows only topics whose period (start/end)
     #                     overlaps the given period (year, year+month or
-    #                     exact date depending on which are present).
+    #                     exact date depending on which are present);
+    #   - upcoming      : with no year given, shows only topics whose
+    #                     period hasn't ended yet (today onward); the
+    #                     default view on /map, "today" or "upcoming",
+    #                     is controlled by the discourse_maps_default_date_filter
+    #                     site setting (applied client-side, see routes/map.js).
     def self.map_topics(
       guardian,
       category_id: nil,
@@ -397,7 +413,8 @@ after_initialize do
       country_keys: [],
       year: nil,
       month: nil,
-      day: nil
+      day: nil,
+      upcoming: false
     )
       base = base_map_scope(guardian)
       return [] unless base
@@ -414,7 +431,7 @@ after_initialize do
       scope = filter_by_countries(scope, country_keys) if country_keys.present?
 
       # Period filter.
-      date_range = date_filter_range(year, month, day)
+      date_range = date_filter_range(year, month, day, upcoming: upcoming)
       scope = filter_by_date_range(scope, *date_range) if date_range
 
       topics = scope.includes(:tags).distinct.order(created_at: :desc).to_a
@@ -470,7 +487,8 @@ after_initialize do
       country_keys: [],
       year: nil,
       month: nil,
-      day: nil
+      day: nil,
+      upcoming: false
     )
       base = base_map_scope(guardian)
       unless base
@@ -479,7 +497,7 @@ after_initialize do
 
       scope = base[:scope]
       tag = base[:tag]
-      date_range = date_filter_range(year, month, day)
+      date_range = date_filter_range(year, month, day, upcoming: upcoming)
 
       # Available categories: respect the tag, country and period filters already set.
       scope_for_categories = scope
@@ -648,6 +666,7 @@ after_initialize do
         format.json do
           tag_names = Array(params[:tags]&.split(","))
           country_keys = Array(params[:countries]&.split(","))
+          upcoming = ActiveModel::Type::Boolean.new.cast(params[:upcoming])
 
           topics =
             ::DiscourseMaps.map_topics(
@@ -658,6 +677,7 @@ after_initialize do
               year: params[:year],
               month: params[:month],
               day: params[:day],
+              upcoming: upcoming,
             )
           filters =
             ::DiscourseMaps.map_filter_options(
@@ -668,6 +688,7 @@ after_initialize do
               year: params[:year],
               month: params[:month],
               day: params[:day],
+              upcoming: upcoming,
             )
 
           render json: { topics: topics, filters: filters }
