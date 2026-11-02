@@ -29,6 +29,11 @@ const DEFAULT_ZOOM = 5;
 // consistency with the single-marker interactive map.
 export const SINGLE_MARKER_ZOOM = 15;
 
+// Lower limit for the /map page's interactive map: prevents zooming out
+// to the point where the world tiles become smaller than the container,
+// leaving blank bars around them.
+const MIN_ZOOM = 1.5;
+
 // Fallback color for markers without a category (or a category with no color).
 // Exported because the pin overlaid on the static map (on the topic page)
 // must also have the same fallback size/color as the interactive map's markers.
@@ -359,6 +364,7 @@ async function createLeafletMap(element, { markers, interactive, apiKey, cluster
   const L = await ensureLeaflet();
 
   const map = L.map(element, {
+    minZoom: MIN_ZOOM,
     scrollWheelZoom: interactive,
     dragging: interactive,
     zoomControl: interactive,
@@ -525,6 +531,7 @@ async function createGoogleMap(
   const map = new google.maps.Map(element, {
     center: DEFAULT_CENTER,
     zoom: DEFAULT_ZOOM,
+    minZoom: MIN_ZOOM,
     gestureHandling: interactive ? "auto" : "none",
     disableDefaultUI: !interactive,
     zoomControl: interactive,
