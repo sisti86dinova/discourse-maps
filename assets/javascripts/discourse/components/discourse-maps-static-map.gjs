@@ -1,16 +1,16 @@
 // ============================================================================
-//  Discourse Maps - Mappa statica (usata nella pagina del topic).
+//  Discourse Maps - Static map (used on the topic page).
 //
-//  Un'unica immagine (nessun SDK Leaflet/Google Maps caricato, quindi niente
-//  tile né chiamate "dinamiche"), centrata sul punto. Il provider NON riceve
-//  alcun marker: il pin, colorato in base alla categoria del topic, è un SVG
-//  disegnato sopra via CSS, sempre al centro dell'immagine (il punto è per
-//  definizione il centro della mappa statica, quindi non serve calcolare
-//  nessuna proiezione lat/lng -> pixel).
+//  A single image (no Leaflet/Google Maps SDK loaded, hence no tiles nor
+//  "dynamic" calls), centered on the point. The provider receives NO
+//  marker: the pin, colored based on the topic's category, is an SVG
+//  drawn on top via CSS, always at the center of the image (the point is
+//  by definition the center of the static map, so no lat/lng -> pixel
+//  projection needs to be computed).
 //
-//  Argomenti:
-//    @location - { lat, lng, display_name, color } (color opzionale, usa il
-//                fallback se assente)
+//  Arguments:
+//    @location - { lat, lng, display_name, color } (color optional, uses
+//                the fallback if absent)
 // ============================================================================
 
 import Component from "@glimmer/component";

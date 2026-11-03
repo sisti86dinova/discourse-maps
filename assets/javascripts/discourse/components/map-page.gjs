@@ -1,63 +1,77 @@
 // ============================================================================
-//  Discourse Maps - Componente della pagina /map.
+//  Discourse Maps - /map page component.
 //
-//  Mostra:
-//    1. in alto, i filtri (categoria + tag, solo quelli effettivamente
-//       presenti tra i topic elencati, per evitare filtraggi a vuoto);
-//    2. una mappa interattiva con un pin per ogni topic geolocalizzato
-//       (popup con titolo, categoria, tag e link al topic);
-//    3. sotto, la lista dei topic corrispondenti (ordinati per data di
-//       creazione decrescente), caricata a gruppi di 10 mentre si scrolla.
+//  Shows:
+//    1. at the top, the filters (category + tags, only those actually
+//       present among the listed topics, to avoid filtering to nothing);
+//    2. an interactive map with a pin for each geolocated topic (popup
+//       with title, category, tags and a link to the topic);
+//    3. below, the list of matching topics (ordered by descending
+//       creation date), loaded in groups of 10 while scrolling.
 //
-//  Argomenti:
-//    @topics          - array di topic ({ id, title, fancy_title, url,
-//                       category_id, tags, location, ... }) dalla rotta /map,
-//                       già ordinati dal server (più recenti prima).
+//  Arguments:
+//    @topics          - array of topics ({ id, title, fancy_title, url,
+//                       category_id, tags, location, ... }) from the /map
+//                       route, already ordered by the server (most recent first).
 //    @filters          - { category_ids: [...], tags: [{id, name}, ...],
-//                        countries: [{id, name}, ...] }, opzioni dei filtri
-//                        calcolate dal server sulla base dei topic
-//                        effettivamente mostrabili.
-//    @categoryId      - id della categoria attualmente selezionata (filtro).
-//    @selectedTags    - array dei tag attualmente selezionati (filtro).
-//    @countryName     - paese attualmente selezionato (filtro).
-//    @year/@month/@day - periodo attualmente selezionato (filtro, gerarchico:
-//                       il mese ha senso solo con un anno, il giorno solo con
-//                       anno+mese).
-//    @onChangeCategory - callback(categoryId) al cambio del filtro categoria.
-//    @onChangeTags     - callback(tags[]) al cambio del filtro tag.
-//    @onChangeCountry  - callback(countryName) al cambio del filtro paese.
-//    @onChangeYear/@onChangeMonth/@onChangeDay - callback(value) al cambio
-//                       del rispettivo livello del filtro periodo.
-//    @onResetDate      - callback() che riporta il filtro periodo alla data
-//                       odierna (usata da "Rimuovi filtri").
+//                        countries: [{id, name}, ...] }, filter options
+//                        computed by the server based on the topics that
+//                        can actually be shown.
+//    @categoryId      - id of the currently selected category (filter).
+//    @selectedTags    - array of the currently selected tags (filter).
+//    @countryCode     - ISO 3166-1 alpha-2 code of the currently selected
+//                       country (filter).
+//    @year/@month/@day - currently selected period (filter, hierarchical:
+//                       month only makes sense with a year, day only with
+//                       year+month).
+//    @upcoming        - true shows every topic whose period hasn't ended
+//                       yet (today onward), with no year/month/day set;
+//                       mutually exclusive with them (see updateYear in
+//                       controllers/map.js).
+//    @onChangeCategory - callback(categoryId) when the category filter changes.
+//    @onChangeTags     - callback(tags[]) when the tag filter changes.
+//    @onChangeCountry  - callback(countryCode) when the country filter changes.
+//    @onChangeYear/@onChangeMonth/@onChangeDay - callback(value) when the
+//                       respective period filter level changes.
+//    @onResetDate      - callback() that clears the period filter (used by
+//                       "Remove filters").
 // ============================================================================
 
 import Component from "@glimmer/component";
 import { tracked } from "@glimmer/tracking";
-import { action } from "@ember/object";
-import { service } from "@ember/service";
 import { hash } from "@ember/helper";
 import { on } from "@ember/modifier";
-import { htmlSafe } from "@ember/template";
+import { action } from "@ember/object";
 import didInsert from "@ember/render-modifiers/modifiers/did-insert";
 import didUpdate from "@ember/render-modifiers/modifiers/did-update";
 import willDestroy from "@ember/render-modifiers/modifiers/will-destroy";
-import { i18n } from "discourse-i18n";
-import DButton from "discourse/components/d-button";
-import icon from "discourse/helpers/d-icon";
+import { service } from "@ember/service";
+import { trustHTML } from "@ember/template";
 import ComboBox from "discourse/select-kit/components/combo-box";
-import DiscourseMapsMap from "./discourse-maps-map";
+import { escapeExpression } from "discourse/lib/utilities";
+import DButton from "discourse/ui-kit/d-button";
+import dIcon from "discourse/ui-kit/helpers/d-icon";
+import { i18n } from "discourse-i18n";
+import formatDateRange, {
+  formatDateParts,
+} from "../lib/discourse-maps-date-range.js";
+import {
+  localizedCountryName,
+  siteLocale,
+} from "../lib/discourse-maps-provider.js";
+import DiscourseMapsDateFilter from "./discourse-maps-date-filter.gjs";
+import DiscourseMapsMap from "./discourse-maps-map.gjs";
 
-// Quanti topic mostrare per volta nella lista (caricamento a scroll).
+// How many topics to show at a time in the list (scroll loading).
 const PAGE_SIZE = 10;
 
-// Colore di fallback per il pin sulla mappa quando il topic non ha una
-// categoria (o la categoria non ha un colore).
+// Fallback color for the map pin when the topic has no category (or the
+// category has no color).
 const DEFAULT_MARKER_COLOR = "#0088CC";
 
-// Soglie per il formato relativo (secondi -> unità), stesso approccio della
-// ricetta MDN per Intl.RelativeTimeFormat: nessuna dipendenza esterna, quindi
-// nessun rischio di ereditare un "Invalid date" da altre utility.
+// Thresholds for the relative format (seconds -> unit), same approach as
+// the MDN recipe for Intl.RelativeTimeFormat: no external dependency, so
+// no risk of inheriting an "Invalid date" from other utilities.
 const RELATIVE_TIME_DIVISIONS = [
   { amount: 60, unit: "second" },
   { amount: 60, unit: "minute" },
@@ -76,30 +90,95 @@ export default class MapPage extends Component {
 
   @tracked visibleCount = PAGE_SIZE;
 
-  // Su mobile i filtri sono racchiusi in un blocco richiudibile (collapse),
-  // chiuso di default: si aprono con il pulsante "Filtri" sotto il titolo.
-  // Su desktop il pulsante è nascosto via CSS e i filtri sono sempre visibili.
+  // On mobile the filters are enclosed in a collapsible block, closed by
+  // default: they open with the "Filters" button below the title. On
+  // desktop the button is hidden via CSS and the filters are always visible.
   @tracked filtersExpanded = false;
 
   observer = null;
 
-  // Nuovo risultato dal server (nuovi filtri): la paginazione riparte da
-  // capo. Eseguito da {{didUpdate}}, fuori dal ciclo di tracking del
-  // render, per non incorrere nell'errore di backtracking di Ember.
+  // New result from the server (new filters): pagination starts over.
+  // Run from {{didUpdate}}, outside the render tracking cycle, to avoid
+  // Ember's backtracking error.
   resetPaging = () => {
     this.visibleCount = PAGE_SIZE;
   };
 
-  // Restituisce la categoria (con url e nome) dato il suo id (o null).
-  category(categoryId) {
-    if (!categoryId) {
-      return null;
-    }
-    return this.site.categories?.find((c) => c.id === categoryId) || null;
-  }
+  toggleFilters = () => {
+    this.filtersExpanded = !this.filtersExpanded;
+  };
 
-  // Categorie da proporre nel filtro: solo quelle presenti tra i topic
-  // mostrabili (indicate dal server), non tutte quelle del forum.
+  // The ComboBox is configured with a "none" option (label "All
+  // categories"/"Tags"/"Countries") to deselect the filter. With
+  // @valueProperty="name" (tags) that option ends up with
+  // the same valueProperty and nameProperty ("name"): select-kit ends up
+  // reporting the translated label as the value instead of null (a known
+  // bug in its internal defaultItem utility, which overwrites the value
+  // when the two properties coincide). By validating the value against
+  // the list of available options, a value that doesn't match any of
+  // them (including that spurious label) is treated as "no filter"
+  // instead of ending up in the query string.
+  handleCategoryChange = (value) => {
+    const categoryId = Number(value);
+    const isValid = this.availableCategories.some((c) => c.id === categoryId);
+    this.args.onChangeCategory(isValid ? categoryId : null);
+  };
+
+  handleTagChange = (value) => {
+    const isValid = this.availableTags.some((t) => t.name === value);
+    this.args.onChangeTags(isValid ? [value] : []);
+  };
+
+  handleCountryChange = (value) => {
+    const isValid = this.availableCountries.some((c) => c.id === value);
+    this.args.onChangeCountry(isValid ? value : null);
+  };
+
+  handleYearChange = (value) => {
+    this.args.onChangeYear(value ?? null);
+  };
+
+  handleMonthChange = (value) => {
+    this.args.onChangeMonth(value ?? null);
+  };
+
+  handleDayChange = (value) => {
+    this.args.onChangeDay(value ?? null);
+  };
+
+  // Clears all filters, period included: shows all geolocated topics,
+  // with no category/tag/country/date filter.
+  resetFilters = () => {
+    this.args.onChangeCategory(null);
+    this.args.onChangeTags([]);
+    this.args.onChangeCountry(null);
+    this.args.onResetDate();
+  };
+
+  loadMore = () => {
+    if (this.hasMore) {
+      this.visibleCount = Math.min(this.visibleCount + PAGE_SIZE, this.rows.length);
+    }
+  };
+
+  // Observes the sentinel at the bottom of the list: when it enters the
+  // viewport, it loads the next group of topics (like infinite scroll).
+  setupObserver = (element) => {
+    this.observer = new IntersectionObserver((entries) => {
+      if (entries[0]?.isIntersecting) {
+        this.loadMore();
+      }
+    });
+    this.observer.observe(element);
+  };
+
+  teardownObserver = () => {
+    this.observer?.disconnect();
+    this.observer = null;
+  };
+
+  // Categories to offer in the filter: only those present among the
+  // topics that can be shown (given by the server), not all the forum's categories.
   get availableCategories() {
     const ids = this.args.filters?.category_ids || [];
     return (this.site.categories || [])
@@ -107,14 +186,14 @@ export default class MapPage extends Component {
       .sort((a, b) => a.name.localeCompare(b.name));
   }
 
-  // Righe del ComboBox categoria: quando la categoria ha un'icona (badge
-  // style "icona"), select-kit disegna un <svg><use href="#nome"></use></svg>
-  // dentro la riga (.select-kit-row), ma senza alcun colore: qui generiamo
-  // una regola CSS per riga (scoped su data-value, l'id della categoria) che
-  // colora quell'icona con il colore nativo della categoria. Niente da
-  // validare sull'id (è sempre un numero); il colore invece arriva
-  // dall'admin di Discourse, quindi lo controlliamo comunque prima di
-  // interpolarlo in CSS.
+  // Category ComboBox rows: when the category has an icon (icon badge
+  // style), select-kit draws a <svg><use href="#name"></use></svg> inside
+  // the row (.select-kit-row), but with no color at all: here we generate
+  // a CSS rule per row (scoped on data-value, the category's id) that
+  // colors that icon with the category's native color. Nothing to
+  // validate on the id (it's always a number); the color, on the other
+  // hand, comes from Discourse's admin, so we still check it before
+  // interpolating it into CSS.
   get categoryRowIconStyles() {
     const rules = this.availableCategories
       .filter((c) => /^[0-9a-fA-F]{3,8}$/.test(c.color || ""))
@@ -123,14 +202,15 @@ export default class MapPage extends Component {
           `.discourse-maps-filters__category .select-kit-row[data-value="${c.id}"] svg use { fill: #${c.color}; }`
       )
       .join("\n");
-    return htmlSafe(rules);
+    return trustHTML(rules);
   }
 
-  // Valore per il ComboBox categoria: @categoryId arriva dalla query string
-  // (quindi sempre come stringa), ma gli id delle categorie sono numeri. Senza
-  // questa conversione il ComboBox non trova la riga corrispondente e mostra
-  // l'id al posto del nome. Se l'id non è (più) tra quelli disponibili
-  // torniamo null invece di mostrare un valore che non può essere risolto.
+  // Value for the category ComboBox: @categoryId comes from the query
+  // string (so always as a string), but category ids are numbers.
+  // Without this conversion the ComboBox doesn't find the matching row
+  // and shows the id instead of the name. If the id is no longer among
+  // the available ones we return null instead of showing a value that
+  // can't be resolved.
   get categoryIdValue() {
     const raw = this.args.categoryId;
     if (raw === null || raw === undefined || raw === "") {
@@ -140,60 +220,73 @@ export default class MapPage extends Component {
     return this.availableCategories.some((c) => c.id === id) ? id : null;
   }
 
-  // Tag da proporre nel filtro: solo quelli presenti tra i topic mostrabili
-  // (indicati dal server come oggetti { id, name }). Vanno passati così (non
-  // semplificati a un array di sole stringhe) perché il ComboBox:
-  //  - deduplica il contenuto internamente usando item[valueProperty]: su
-  //    stringhe pure quella chiave è sempre undefined per ognuna (le
-  //    collasserebbe tutte su una voce sola);
-  //  - se si disabilita valueProperty per evitare la dedup, il valore
-  //    selezionato diventa un array (content.filter(...)) invece di un
-  //    elemento singolo, e la label non si risolve più (resta vuota).
-  // Con @valueProperty="name" nel template la chiave di dedup e di
-  // confronto è il nome (univoco per riga): nessuno dei due problemi si
-  // presenta.
+  // Tags to offer in the filter: only those present among the topics that
+  // can be shown (given by the server as { id, name } objects). They must
+  // be passed this way (not simplified to an array of plain strings)
+  // because the ComboBox:
+  //  - deduplicates the content internally using item[valueProperty]: on
+  //    plain strings that key is always undefined for each of them (it
+  //    would collapse them all into a single entry);
+  //  - if valueProperty is disabled to avoid the dedup, the selected
+  //    value becomes an array (content.filter(...)) instead of a single
+  //    item, and the label no longer resolves (it stays empty).
+  // With @valueProperty="name" in the template, the dedup and comparison
+  // key is the name (unique per row): neither problem shows up.
   get availableTags() {
     return this.args.filters?.tags || [];
   }
 
-  // Un solo tag selezionabile per volta, come la categoria. Torniamo null se
-  // il tag non è (più) tra quelli disponibili.
+  // Only one tag selectable at a time, like the category. We return null
+  // if the tag is no longer among the available ones.
   get selectedTagName() {
     const name = (this.args.selectedTags && this.args.selectedTags[0]) || null;
     return name && this.availableTags.some((t) => t.name === name) ? name : null;
   }
 
-  // Paesi da proporre nel filtro: solo quelli presenti tra i topic
-  // mostrabili (indicati dal server come oggetti { id, name }), per lo
-  // stesso motivo dei tag (sopra).
+  // Countries to offer in the filter: only those present among the
+  // topics that can be shown (given by the server as { id, name }
+  // objects), for the same reason as the tags (above).
+  //
+  // The id is the ISO 3166-1 alpha-2 code and the name the server sends
+  // is just what the provider returned when the topic was saved, in
+  // whatever language was in force then: we always render the name from
+  // the code in the site's language, so the same country can't appear
+  // twice ("Italia" / "Italy"). The server's name only survives for
+  // topics saved before the code was stored.
   get availableCountries() {
-    return this.args.filters?.countries || [];
+    return (this.args.filters?.countries || [])
+      .map((country) => ({
+        id: country.id,
+        name: localizedCountryName(country.id, this.siteSettings) || country.name,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name, siteLocale(this.siteSettings)));
   }
 
-  // Paese selezionato: null se non è (più) tra quelli disponibili.
-  get selectedCountryName() {
-    const name = this.args.countryName || null;
-    return name && this.availableCountries.some((c) => c.name === name) ? name : null;
+  // Selected country: null if it's no longer among the available ones.
+  get selectedCountryCode() {
+    const code = this.args.countryCode || null;
+    return code && this.availableCountries.some((c) => c.id === code) ? code : null;
   }
 
-  // Un filtro è "attivo" in base allo stato passato dalla rotta (URL), non in
-  // base a cosa il ComboBox riesce a mostrare: altrimenti, se il valore
-  // selezionato non è (più) tra le opzioni disponibili, il filtro
-  // risulterebbe attivo (i topic restano filtrati) ma il pulsante di reset
-  // resterebbe disabilitato.
+  // A filter is "active" based on the state passed by the route (URL),
+  // not on what the ComboBox manages to show: otherwise, if the selected
+  // value is no longer among the available options, the filter would
+  // still be active (topics remain filtered) but the reset button would
+  // stay disabled.
   get hasActiveFilters() {
     return (
       Boolean(this.args.categoryId) ||
       Boolean(this.args.selectedTags && this.args.selectedTags.length) ||
-      Boolean(this.args.countryName) ||
-      Boolean(this.args.year)
+      Boolean(this.args.countryCode) ||
+      Boolean(this.args.year) ||
+      Boolean(this.args.upcoming)
     );
   }
 
-  // Quanti filtri sono attivi: mostrato nel pulsante di toggle su mobile,
-  // così l'utente sa che ci sono filtri applicati anche a blocco chiuso.
-  // Il periodo (anno/mese/giorno) conta come un solo filtro, indipendentemente
-  // dal suo livello di dettaglio.
+  // How many filters are active: shown on the mobile toggle button, so
+  // the user knows filters are applied even with the block closed. The
+  // period (year/month/day, or upcoming) counts as a single filter,
+  // regardless of its level of detail.
   get activeFilterCount() {
     let count = 0;
     if (this.args.categoryId) {
@@ -202,10 +295,10 @@ export default class MapPage extends Component {
     if (this.args.selectedTags && this.args.selectedTags.length) {
       count++;
     }
-    if (this.args.countryName) {
+    if (this.args.countryCode) {
       count++;
     }
-    if (this.args.year) {
+    if (this.args.year || this.args.upcoming) {
       count++;
     }
     return count;
@@ -216,31 +309,16 @@ export default class MapPage extends Component {
     return this.activeFilterCount ? `${base} (${this.activeFilterCount})` : base;
   }
 
-  toggleFilters = () => {
-    this.filtersExpanded = !this.filtersExpanded;
-  };
-
-  handleCategoryChange = (value) => {
-    this.args.onChangeCategory(value ?? null);
-  };
-
-  handleTagChange = (value) => {
-    this.args.onChangeTags(value ? [value] : []);
-  };
-
-  handleCountryChange = (value) => {
-    this.args.onChangeCountry(value ?? null);
-  };
-
-  // Anni disponibili nel filtro periodo: opzioni calcolate dal server sui
-  // topic mostrabili con i filtri categoria/tag/paese già applicati.
+  // Years available in the period filter: options computed by the server
+  // on the topics that can be shown, with the category/tag/country
+  // filters already applied.
   get availableYears() {
     return this.args.filters?.years || [];
   }
 
-  // @year arriva dalla query string (sempre stringa): stesso trattamento di
-  // categoryIdValue, per far combaciare il valore col tipo numerico atteso
-  // dal ComboBox.
+  // @year comes from the query string (always a string): same treatment
+  // as categoryIdValue, to make the value match the numeric type
+  // expected by the ComboBox.
   get selectedYear() {
     const raw = this.args.year;
     if (raw === null || raw === undefined || raw === "") {
@@ -250,9 +328,9 @@ export default class MapPage extends Component {
     return this.availableYears.some((y) => y.id === year) ? year : null;
   }
 
-  // Mesi disponibili (dipendono dall'anno selezionato, vedi plugin.rb): il
-  // nome del mese è localizzato lato client con Intl, il server restituisce
-  // solo il numero (1-12).
+  // Available months (depend on the selected year, see plugin.rb): the
+  // month name is localized client-side with Intl, the server only
+  // returns the number (1-12).
   get availableMonths() {
     const months = this.args.filters?.months || [];
     const formatter = new Intl.DateTimeFormat(
@@ -274,7 +352,7 @@ export default class MapPage extends Component {
     return this.availableMonths.some((m) => m.id === month) ? month : null;
   }
 
-  // Giorni disponibili (dipendono da anno+mese selezionati, vedi plugin.rb).
+  // Available days (depend on the selected year+month, see plugin.rb).
   get availableDays() {
     return this.args.filters?.days || [];
   }
@@ -288,21 +366,9 @@ export default class MapPage extends Component {
     return this.availableDays.some((d) => d.id === day) ? day : null;
   }
 
-  handleYearChange = (value) => {
-    this.args.onChangeYear(value ?? null);
-  };
-
-  handleMonthChange = (value) => {
-    this.args.onChangeMonth(value ?? null);
-  };
-
-  handleDayChange = (value) => {
-    this.args.onChangeDay(value ?? null);
-  };
-
-  // Il pulsante "Nuovo topic" è visibile solo agli admin e ai membri dei
-  // gruppi indicati nell'impostazione discourse_maps_new_topic_groups
-  // (elenco di id gruppo separati da "|", vuoto = solo admin).
+  // The "New topic" button is visible only to admins and members of the
+  // groups given in the discourse_maps_new_topic_groups setting (list of
+  // group ids separated by "|", empty = admins only).
   get canCreateTopic() {
     const user = this.currentUser;
     if (!user) {
@@ -323,85 +389,65 @@ export default class MapPage extends Component {
     return (user.groups || []).some((g) => allowedGroupIds.includes(g.id));
   }
 
-  @action
-  async createTopic() {
-    // Segnaliamo al server che il topic nasce dal pulsante "Nuovo topic"
-    // di /map: il tag "mappa" verrà assegnato comunque, anche se l'utente
-    // non aggiunge una posizione dal composer (vedi on(:post_created) in
-    // plugin.rb). Passare il tag qui via `tags:` non funzionerebbe per gli
-    // utenti non staff: il tag group è riservato allo staff, quindi
-    // `composer.filterTags` lo rimuoverebbe silenziosamente.
-    await this.composer.openNewTopic();
-    this.composer.model.set("discourse_maps_from_map", true);
+  // True when the period filter is set to exactly today's date (the
+  // default on the very first page load, see routes/map.js): used both
+  // for the empty-list message and for the "Today" label of the date
+  // filter. Based on the "raw" parameters (this.args.year/month/day,
+  // from the query string) and not on this.selectedDay/etc., which
+  // instead clear the day if it's not among the available options (no
+  // topic that day) — which would then often happen exactly in the
+  // "today" case, defeating the comparison.
+  // @year/@month/@day arrive as strings from the query string, hence the
+  // conversion to Number.
+  get isTodayFilter() {
+    const { year, month, day } = this.args;
+    if (!year || !month || !day) {
+      return false;
+    }
+    const today = new Date();
+    return (
+      Number(year) === today.getFullYear() &&
+      Number(month) === today.getMonth() + 1 &&
+      Number(day) === today.getDate()
+    );
   }
 
-  // Categoria/tag/paese vengono azzerati (nessun filtro), il periodo invece
-  // torna alla data odierna invece di essere rimosso del tutto: altrimenti,
-  // con potenzialmente migliaia di topic geolocalizzati a regime, il pulsante
-  // "Rimuovi filtri" mostrerebbe di colpo tutti i pin di sempre.
-  resetFilters = () => {
-    this.args.onChangeCategory(null);
-    this.args.onChangeTags([]);
-    this.args.onChangeCountry(null);
-    this.args.onResetDate();
-  };
+  // True when the "upcoming" (today onward, no end date) period is in
+  // effect: the other possible default on the very first page load (see
+  // routes/map.js), used for the "From today onwards" label of the date
+  // filter and for the dedicated empty-list message.
+  get isUpcomingFilter() {
+    return Boolean(this.args.upcoming) && !this.args.year;
+  }
 
-  // Solo i topic che hanno una posizione valida (per mappa e lista). La
-  // mappa mostra sempre l'intero risultato filtrato, indipendentemente
-  // dalla paginazione della lista sotto.
+  // Only topics with a valid location (for the map and the list). The
+  // map always shows the entire filtered result, regardless of the
+  // pagination of the list below.
   get locatedTopics() {
     return (this.args.topics || []).filter(
       (t) => t.location && t.location.lat && t.location.lng
     );
   }
 
-  // Formatta il periodo (inizio/fine) di un topic in un'unica etichetta
-  // leggibile, localizzata: solo la data di inizio se coincide con quella di
-  // fine (evento di un giorno), altrimenti "inizio – fine". Le date sono
-  // salvate come stringhe "YYYY-MM-DD": costruiamo il Date esplicitando
-  // anno/mese/giorno invece di parsare la stringa, per evitare l'off-by-one
-  // dovuto al fuso orario che `new Date("YYYY-MM-DD")` applicherebbe
-  // (interpretata come UTC mezzanotte, può scadere al giorno prima nel fuso
-  // locale).
-  formatDateRange(location) {
-    if (!location?.start_date || !location?.end_date) {
-      return null;
-    }
-
-    const formatter = new Intl.DateTimeFormat(
-      document.documentElement.lang || undefined,
-      { year: "numeric", month: "short", day: "numeric" }
-    );
-    const toDate = (value) => {
-      const [year, month, day] = value.split("-").map(Number);
-      return new Date(year, month - 1, day);
-    };
-
-    const start = formatter.format(toDate(location.start_date));
-    if (location.start_date === location.end_date) {
-      return start;
-    }
-    const end = formatter.format(toDate(location.end_date));
-    return `${start} – ${end}`;
-  }
-
-  // Marker per la mappa, con popup HTML (titolo + categoria + tag, entrambi
-  // cliccabili). Il titolo ha una classe dedicata (discourse-maps-popup__title)
-  // per poterlo stilizzare separatamente dal resto del contenuto del popup.
+  // Markers for the map, with an HTML popup (title + category + tags,
+  // both clickable). The title has a dedicated class
+  // (discourse-maps-popup__title) so it can be styled separately from
+  // the rest of the popup's content.
   get markers() {
     return this.locatedTopics.map((topic) => {
       const category = this.category(topic.category_id);
 
-      // Il titolo è già "display: block" via CSS: un <br> dopo aggiungerebbe
-      // solo una riga vuota in più. Va unito senza <br>, mentre categoria e
-      // tag (se entrambi presenti) restano separati da <br>, una riga ciascuno.
+      // The title is already "display: block" via CSS: a <br> after it
+      // would only add an extra empty line. It must be joined without a
+      // <br>, while category and tags (if both present) stay separated
+      // by <br>, one line each.
       const title =
         `<strong class="discourse-maps-popup__title">` +
-        `<a href="${topic.url}">${topic.fancy_title || topic.title}</a>` +
+        `<a href="${escapeExpression(topic.url)}">${topic.fancy_title || escapeExpression(topic.title)}</a>` +
         `</strong>`;
 
       const lines = [];
-      const dateRange = this.formatDateRange(topic.location);
+      const dateRange = formatDateRange(topic.location);
       if (dateRange) {
         lines.push(dateRange);
       }
@@ -409,13 +455,16 @@ export default class MapPage extends Component {
       if (category) {
         lines.push(
           `${i18n("discourse_maps.popup.category")} ` +
-            `<a href="${category.url}">${category.name}</a>`
+            `<a href="${escapeExpression(category.url)}">${escapeExpression(category.name)}</a>`
         );
       }
 
       if (topic.tags?.length) {
         const tagLinks = topic.tags
-          .map((tag) => `<a href="/tag/${tag}">${tag}</a>`)
+          .map(
+            (tag) =>
+              `<a href="/tag/${escapeExpression(tag)}">${escapeExpression(tag)}</a>`
+          )
           .join(", ");
         lines.push(`${i18n("discourse_maps.popup.tags")} ${tagLinks}`);
       }
@@ -429,16 +478,16 @@ export default class MapPage extends Component {
     });
   }
 
-  // Righe per la lista sotto la mappa: categoria/tag come link, statistiche
-  // (viste, like, commenti, attività) come nella topic-list nativa.
+  // Rows for the list below the map: category/tags as links, statistics
+  // (views, likes, comments, activity) like in the native topic list.
   get rows() {
     return this.locatedTopics.map((topic) => {
       const category = this.category(topic.category_id);
       const tags = topic.tags || [];
 
-      // Classi "category-<slug>"/"tag-<slug>" sull'item della lista, utili a
-      // temi/CSS esterni per personalizzare l'aspetto in base a categoria e
-      // tag (lo slug del tag in Discourse è il nome stesso del tag).
+      // "category-<slug>"/"tag-<slug>" classes on the list item, useful
+      // for external themes/CSS to customize the look based on category
+      // and tags (a tag's slug in Discourse is the tag's name itself).
       const itemClass = [
         category?.slug ? `category-${category.slug}` : null,
         ...tags.map((tag) => `tag-${tag}`),
@@ -451,7 +500,7 @@ export default class MapPage extends Component {
         category,
         itemClass,
         categoryStyle: category
-          ? htmlSafe(
+          ? trustHTML(
               `--category-badge-color: #${category.color};--category-badge-text-color: #${category.text_color};`
             )
           : null,
@@ -461,16 +510,45 @@ export default class MapPage extends Component {
         })),
         commentsCount: Math.max((topic.posts_count || 1) - 1, 0),
         activityDate: this.formatActivityDate(topic),
-        dateRange: this.formatDateRange(topic.location),
+        dateParts: formatDateParts(topic.location),
       };
     });
   }
 
-  // Data di attività mostrata nella lista: preferisce l'ultimo post, con
-  // fallback alla creazione del topic. Se il valore ricevuto non è una data
-  // valida non la mostriamo, invece di rischiare un "Invalid date". Il
-  // formato relativo è calcolato qui (Intl.RelativeTimeFormat nativo),
-  // senza dipendere da altre utility di date.
+  // Subset of rows actually visible (scroll pagination).
+  get visibleRows() {
+    return this.rows.slice(0, this.visibleCount);
+  }
+
+  get hasMore() {
+    return this.visibleCount < this.rows.length;
+  }
+
+  // Returns the category (with url and name) given its id (or null).
+  category(categoryId) {
+    if (!categoryId) {
+      return null;
+    }
+    return this.site.categories?.find((c) => c.id === categoryId) || null;
+  }
+
+  @action
+  async createTopic() {
+    // We tell the server that the topic originates from the "New topic"
+    // button on /map: the "map" tag will be assigned regardless, even if
+    // the user doesn't add a location from the composer (see
+    // on(:post_created) in plugin.rb). Passing the tag here via `tags:`
+    // wouldn't work for non-staff users: the tag group is staff-only, so
+    // `composer.filterTags` would silently remove it.
+    await this.composer.openNewTopic();
+    this.composer.model.set("discourse_maps_from_map", true);
+  }
+
+  // Activity date shown in the list: prefers the last post, falling back
+  // to the topic's creation date. If the received value isn't a valid
+  // date we don't show it, instead of risking an "Invalid date". The
+  // relative format is computed here (native Intl.RelativeTimeFormat),
+  // without depending on other date utilities.
   formatActivityDate(topic) {
     const raw = topic.last_posted_at || topic.created_at;
     if (!raw) {
@@ -499,129 +577,88 @@ export default class MapPage extends Component {
     return null;
   }
 
-  // Sottoinsieme di righe effettivamente visibili (paginazione a scroll).
-  get visibleRows() {
-    return this.rows.slice(0, this.visibleCount);
-  }
-
-  get hasMore() {
-    return this.visibleCount < this.rows.length;
-  }
-
-  loadMore = () => {
-    if (this.hasMore) {
-      this.visibleCount = Math.min(this.visibleCount + PAGE_SIZE, this.rows.length);
-    }
-  };
-
-  // Osserva la sentinella in fondo alla lista: quando entra nel viewport,
-  // carica il prossimo gruppo di topic (come uno scroll infinito).
-  setupObserver = (element) => {
-    this.observer = new IntersectionObserver((entries) => {
-      if (entries[0]?.isIntersecting) {
-        this.loadMore();
-      }
-    });
-    this.observer.observe(element);
-  };
-
-  teardownObserver = () => {
-    this.observer?.disconnect();
-    this.observer = null;
-  };
-
   <template>
     <div class="discourse-maps-page" {{didUpdate this.resetPaging @topics}}>
       <h1 class="discourse-maps-page__title">{{i18n "discourse_maps.page_title"}}</h1>
 
-      {{! Riga di azioni visibile solo su mobile (nascosta via CSS su
-          desktop): il toggle apre/chiude il blocco dei filtri sottostante,
-          "Nuovo post" resta sempre visibile (non è dentro il blocco che si
-          può richiudere) all'estremo opposto della stessa riga. }}
+      {{! Actions row visible only on mobile (hidden via CSS on desktop):
+          the toggle opens/closes the filters block below, "New post"
+          always stays visible (it's not inside the collapsible block)
+          at the opposite end of the same row. }}
       <div class="discourse-maps-mobile-actions">
         <DButton
+          aria-controls="discourse-maps-filters"
+          aria-expanded={{if this.filtersExpanded "true" "false"}}
+          class="btn-default discourse-maps-filters-toggle"
           @action={{this.toggleFilters}}
           @icon={{if this.filtersExpanded "angle-up" "angle-down"}}
           @translatedLabel={{this.filtersToggleLabel}}
-          aria-expanded={{if this.filtersExpanded "true" "false"}}
-          aria-controls="discourse-maps-filters"
-          class="btn-default discourse-maps-filters-toggle"
         />
 
         {{#if this.canCreateTopic}}
           <DButton
-            @icon="far-pen-to-square"
-            @label="discourse_maps.filters.new_topic"
-            @action={{this.createTopic}}
             class="btn btn-icon-text d-combo-button-button btn-default
               discourse-maps-filters__new-topic discourse-maps-filters__new-topic--mobile"
+            @action={{this.createTopic}}
+            @icon="far-pen-to-square"
+            @label="discourse_maps.filters.new_topic"
           />
         {{/if}}
       </div>
 
-      {{! Filtri: categoria e tag, solo quelli presenti tra i topic elencati.
-          Su mobile "is-collapsed" li nasconde finché non si usa il toggle. }}
+      {{! Filters: category and tags, only those present among the listed
+          topics. On mobile "is-collapsed" hides them until the toggle is used. }}
       <div
-        id="discourse-maps-filters"
         class="discourse-maps-filters {{unless this.filtersExpanded 'is-collapsed'}}"
+        id="discourse-maps-filters"
       >
         <style>{{this.categoryRowIconStyles}}</style>
 
         <ComboBox
-          @value={{this.categoryIdValue}}
+          class="discourse-maps-filters__category"
           @content={{this.availableCategories}}
           @onChange={{this.handleCategoryChange}}
           @options={{hash none="discourse_maps.filters.all_categories"}}
-          class="discourse-maps-filters__category"
+          @value={{this.categoryIdValue}}
         />
 
         <ComboBox
-          @value={{this.selectedTagName}}
+          class="discourse-maps-filters__tags"
           @content={{this.availableTags}}
           @onChange={{this.handleTagChange}}
-          @valueProperty="name"
           @options={{hash none="discourse_maps.filters.all_tags"}}
-          class="discourse-maps-filters__tags"
+          @value={{this.selectedTagName}}
+          @valueProperty="name"
         />
 
         <ComboBox
-          @value={{this.selectedCountryName}}
+          class="discourse-maps-filters__countries"
           @content={{this.availableCountries}}
           @onChange={{this.handleCountryChange}}
-          @valueProperty="name"
           @options={{hash none="discourse_maps.filters.all_countries"}}
-          class="discourse-maps-filters__countries"
+          @value={{this.selectedCountryCode}}
         />
 
-        <ComboBox
-          @value={{this.selectedYear}}
-          @content={{this.availableYears}}
-          @onChange={{this.handleYearChange}}
-          @options={{hash none="discourse_maps.filters.all_years"}}
-          class="discourse-maps-filters__year"
-        />
-
-        <ComboBox
-          @value={{this.selectedMonth}}
-          @content={{this.availableMonths}}
-          @onChange={{this.handleMonthChange}}
-          @options={{hash none="discourse_maps.filters.all_months"}}
-          class="discourse-maps-filters__month"
-        />
-
-        <ComboBox
-          @value={{this.selectedDay}}
-          @content={{this.availableDays}}
-          @onChange={{this.handleDayChange}}
-          @options={{hash none="discourse_maps.filters.all_days"}}
-          class="discourse-maps-filters__day"
+        <DiscourseMapsDateFilter
+          class="discourse-maps-filters__date"
+          @availableDays={{this.availableDays}}
+          @availableMonths={{this.availableMonths}}
+          @availableYears={{this.availableYears}}
+          @day={{this.selectedDay}}
+          @isToday={{this.isTodayFilter}}
+          @isUpcoming={{this.isUpcomingFilter}}
+          @month={{this.selectedMonth}}
+          @onSelectDay={{this.handleDayChange}}
+          @onSelectMonth={{this.handleMonthChange}}
+          @onSelectYear={{this.handleYearChange}}
+          @year={{this.selectedYear}}
         />
 
         <button
-          type="button"
           class="btn btn-icon-text d-page-action-button btn-small btn-danger discourse-maps-filters__reset
             {{unless this.hasActiveFilters 'disabled'}}"
           disabled={{if this.hasActiveFilters false true}}
+          type="button"
           {{on "click" this.resetFilters}}
         >
           {{i18n "discourse_maps.filters.reset"}}
@@ -629,48 +666,54 @@ export default class MapPage extends Component {
 
         {{#if this.canCreateTopic}}
           <DButton
+            class="btn btn-icon-text d-combo-button-button btn-default discourse-maps-filters__new-topic"
+            @action={{this.createTopic}}
             @icon="far-pen-to-square"
             @label="discourse_maps.filters.new_topic"
-            @action={{this.createTopic}}
-            class="btn btn-icon-text d-combo-button-button btn-default discourse-maps-filters__new-topic"
           />
         {{/if}}
       </div>
 
-      {{! Mappa con tutti i pin del risultato filtrato. }}
-      <DiscourseMapsMap @markers={{this.markers}} @interactive={{true}} />
+      {{! Map with all the pins of the filtered result. }}
+      <DiscourseMapsMap @interactive={{true}} @markers={{this.markers}} />
 
-      {{! Lista dei topic geolocalizzati (ordinati per data, paginata a scroll). }}
+      {{! List of geolocated topics (ordered by date, scroll-paginated). }}
       <div class="discourse-maps-list">
         {{#each this.visibleRows as |row|}}
           <div class="discourse-maps-list__item {{row.itemClass}} {{if row.topic.visited 'visited'}}">
             <div class="discourse-maps-list__thumbnail">
-              <a href={{row.topic.url}} role="img" aria-label={{row.topic.title}}>
+              <a aria-label={{row.topic.title}} href={{row.topic.url}} role="img">
                 {{#if row.topic.image_url}}
-                  <img src={{row.topic.image_url}} loading="lazy" alt="" />
+                  <img alt="" loading="lazy" src={{row.topic.image_url}} />
                 {{else}}
                   <div class="thumbnail-placeholder">
-                    {{icon "comments"}}
+                    {{dIcon "globe"}}
                   </div>
                 {{/if}}
               </a>
             </div>
 
-            <div class="discourse-maps-list__content">
-              <a href={{row.topic.url}} class="discourse-maps-list__title">
+            <div class="discourse-maps-list__content" style="display: flex; flex-direction: column; align-items: flex-start;">
+              <a class="discourse-maps-list__title" href={{row.topic.url}}>
                 {{row.topic.title}}
               </a>
 
-              {{#if row.dateRange}}
-                <div class="discourse-maps-list__date">{{row.dateRange}}</div>
+              {{#if row.dateParts}}
+                <div class="discourse-maps-list__date" style="order: -1;">
+                  <span class="discourse-maps-list__date-value">{{row.dateParts.start}}</span>
+                  {{#unless row.dateParts.sameDay}}
+                    <span aria-hidden="true" class="discourse-maps-list__date-separator">–</span>
+                    <span class="discourse-maps-list__date-value">{{row.dateParts.end}}</span>
+                  {{/unless}}
+                </div>
               {{/if}}
 
               <div class="discourse-maps-list__meta">
                 {{#if row.category}}
                   <a
                     class="badge-category__wrapper"
-                    style={{row.categoryStyle}}
                     href={{row.category.url}}
+                    style={{row.categoryStyle}}
                   >
                     <span class="badge-category --style-square">
                       <span class="badge-category__name">{{row.category.name}}</span>
@@ -679,9 +722,9 @@ export default class MapPage extends Component {
                 {{/if}}
 
                 {{#if row.tags.length}}
-                  <ul class="discourse-tags" aria-label="Tags">
+                  <ul aria-label="Tags" class="discourse-tags">
                     {{#each row.tags as |tag|}}
-                      <li><a href={{tag.url}} class="discourse-tag simple">{{tag.name}}</a></li>
+                      <li><a class="discourse-tag simple" href={{tag.url}}>{{tag.name}}</a></li>
                     {{/each}}
                   </ul>
                 {{/if}}
@@ -690,13 +733,13 @@ export default class MapPage extends Component {
 
             <div class="discourse-maps-list__stats">
               <span class="discourse-maps-list__stat">
-                {{icon "eye"}}<span class="number">{{row.topic.views}}</span>
+                {{dIcon "eye"}}<span class="number">{{row.topic.views}}</span>
               </span>
               <span class="discourse-maps-list__stat">
-                {{icon "heart"}}<span class="number">{{row.topic.like_count}}</span>
+                {{dIcon "heart"}}<span class="number">{{row.topic.like_count}}</span>
               </span>
               <span class="discourse-maps-list__stat">
-                {{icon "comment"}}<span class="number">{{row.commentsCount}}</span>
+                {{dIcon "comment"}}<span class="number">{{row.commentsCount}}</span>
               </span>
               {{#if row.activityDate}}
                 <span class="discourse-maps-list__relative-date">{{row.activityDate}}</span>
@@ -705,7 +748,13 @@ export default class MapPage extends Component {
           </div>
         {{else}}
           <p class="discourse-maps-list__empty">
-            {{i18n "discourse_maps.list.empty"}}
+            {{#if this.isTodayFilter}}
+              {{i18n "discourse_maps.list.empty_today"}}
+            {{else if this.isUpcomingFilter}}
+              {{i18n "discourse_maps.list.empty_upcoming"}}
+            {{else}}
+              {{i18n "discourse_maps.list.empty"}}
+            {{/if}}
           </p>
         {{/each}}
 

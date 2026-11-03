@@ -9,8 +9,10 @@ Thumbs.db
 # Editor / IDE
 .idea/
 .vscode/
+.claude
 
 # Build
 dist/
 tmp/
 
+START.md

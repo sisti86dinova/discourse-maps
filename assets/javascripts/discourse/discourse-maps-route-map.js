@@ -1,10 +1,10 @@
 // ============================================================================
-//  Discourse Maps - Registrazione della rotta client /map.
+//  Discourse Maps - Registration of the /map client route.
 //
-//  Aggiunge la rotta "map" (path /map) al router dell'applicazione Ember.
+//  Adds the "map" route (path /map) to the Ember application router.
 // ============================================================================
 
 export default function () {
-  this.route("map", { path: "/map-under-dev" });
+  this.route("map");
 }
 

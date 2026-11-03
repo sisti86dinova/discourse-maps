@@ -1,14 +1,14 @@
 // ============================================================================
-//  Discourse Maps - Componente mappa riutilizzabile.
+//  Discourse Maps - Reusable map component.
 //
-//  Renderizza una mappa interattiva in un contenitore <div>. È volutamente
-//  generico: accetta uno o più marker, così potrà essere usato sia nella
-//  pagina del topic (un solo pin) sia nella pagina /map (molti pin).
+//  Renders an interactive map in a <div> container. It's deliberately
+//  generic: it accepts one or more markers, so it can be used both on
+//  the topic page (a single pin) and on the /map page (many pins).
 //
-//  Argomenti:
-//    @location    - singolo punto { lat, lng, display_name } (opzionale)
-//    @markers     - array di punti (opzionale, ha priorità su @location)
-//    @interactive - abilita zoom/spostamento (default: true)
+//  Arguments:
+//    @location    - single point { lat, lng, display_name } (optional)
+//    @markers     - array of points (optional, takes priority over @location)
+//    @interactive - enables zoom/pan (default: true)
 // ============================================================================
 
 import Component from "@glimmer/component";
@@ -22,11 +22,11 @@ import { createMap } from "../lib/discourse-maps-provider";
 export default class DiscourseMapsMap extends Component {
   @service siteSettings;
 
-  // Riferimenti al contenitore e alla mappa creata.
+  // References to the container and the created map.
   element = null;
   mapHandle = null;
 
-  // Marker da mostrare: preferisce @markers, altrimenti usa @location singolo.
+  // Markers to show: prefers @markers, otherwise uses the single @location.
   get markers() {
     if (this.args.markers) {
       return this.args.markers;
@@ -34,25 +34,25 @@ export default class DiscourseMapsMap extends Component {
     return this.args.location ? [this.args.location] : [];
   }
 
-  // Sceglie la chiave API corretta in base al provider configurato.
+  // Picks the correct API key based on the configured provider.
   get apiKey() {
     return this.siteSettings.discourse_maps_provider === "google"
       ? this.siteSettings.discourse_maps_google_api_key
       : this.siteSettings.discourse_maps_locationiq_api_key;
   }
 
-  // Costruisce (o ricostruisce) la mappa nel contenitore memorizzato.
+  // Builds (or rebuilds) the map in the stored container.
   async build() {
     this.mapHandle = await createMap(this.element, {
       provider: this.siteSettings.discourse_maps_provider,
       apiKey: this.apiKey,
-      // Lingua del sito: usata per caricare la libreria Google Maps (etichette
-      // e geocoder coerenti con la lingua del forum).
+      // Site language: used to load the Google Maps library (labels and
+      // geocoder consistent with the forum's language).
       language: (this.siteSettings.default_locale || "en").replace("_", "-"),
       markers: this.markers,
       interactive: this.args.interactive ?? true,
-      // La site setting "color" salva l'esadecimale senza "#" (come i colori
-      // delle categorie): lo normalizziamo qui per usarlo diretto nell'SVG.
+      // The "color" site setting stores the hex value without "#" (like
+      // category colors): we normalize it here to use it directly in the SVG.
       clusterColor: this.siteSettings.discourse_maps_cluster_color
         ? `#${this.siteSettings.discourse_maps_cluster_color.replace(/^#/, "")}`
         : undefined,
@@ -65,8 +65,8 @@ export default class DiscourseMapsMap extends Component {
     await this.build();
   }
 
-  // Ricostruisce la mappa quando i marker (o la posizione) cambiano, ad es.
-  // al variare dei filtri nella pagina /map.
+  // Rebuilds the map when the markers (or the location) change, e.g. when
+  // the filters on the /map page change.
   @action
   async refresh() {
     this.mapHandle?.destroy?.();

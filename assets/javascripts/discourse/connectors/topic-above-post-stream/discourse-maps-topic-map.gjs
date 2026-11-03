@@ -1,8 +1,9 @@
 // ============================================================================
-//  Discourse Maps - Connector: mappa nella pagina del topic.
+//  Discourse Maps - Connector: map on the topic page.
 //
-//  Si aggancia all'outlet "topic-above-post-stream" (subito sopra i post) e,
-//  se il topic contiene dati geografici, mostra la relativa mappa con il pin.
+//  Hooks into the "topic-above-post-stream" outlet (right above the
+//  posts) and, if the topic has geographic data, shows the corresponding
+//  map with the pin.
 // ============================================================================
 
 import Component from "@glimmer/component";
@@ -17,7 +18,7 @@ export default class DiscourseMapsTopicMap extends Component {
     return this.args.outletArgs?.model;
   }
 
-  // Posizione salvata sul topic (serializzata dal server, se presente).
+  // Location saved on the topic (serialized by the server, if present).
   get location() {
     return this.topic?.discourse_maps_location;
   }
@@ -30,9 +31,9 @@ export default class DiscourseMapsTopicMap extends Component {
     return this.site.categories?.find((c) => c.id === categoryId) || null;
   }
 
-  // Stesso pin colorato per categoria della pagina /map: senza questo il
-  // marker qui usava sempre il colore di fallback, perché @location non
-  // porta con sé alcuna informazione sulla categoria del topic.
+  // Same category-colored pin as the /map page: without this, the
+  // marker here always used the fallback color, because @location
+  // doesn't carry any information about the topic's category.
   get markerLocation() {
     return {
       ...this.location,

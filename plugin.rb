@@ -2,12 +2,12 @@
 
 # ============================================================================
 #  Discourse Maps
-#  Plugin che permette di inserire informazioni geografiche nei topic e di
-#  visualizzarle su una mappa interattiva (LocationIQ oppure Google Maps).
-#  NOTA: questo file è il punto di ingresso del plugin. In questo primo step
-#  contiene solo la struttura di base (metadati, abilitazione, impostazioni).
-#  Le funzionalità (composer, pagina /map, filtri) verranno aggiunte nei
-#  passaggi successivi.
+#  Plugin that allows inserting geographic information in topics and
+#  displaying it on an interactive map (LocationIQ or Google Maps).
+#  NOTE: this file is the plugin's entry point. In this first step it only
+#  contains the basic structure (metadata, enabling, settings).
+#  The features (composer, /map page, filters) will be added in later
+#  steps.
 # ============================================================================
 
 # name: discourse-maps
@@ -17,64 +17,99 @@
 # url: https://github.com/sisti86dinova/discourse-maps
 # required_version: 2.7.0
 
-# Abilita/disabilita l'intero plugin tramite l'impostazione del pannello admin.
+# Enables/disables the whole plugin via the admin panel setting.
 enabled_site_setting :discourse_maps_enabled
 
-# Registra il foglio di stile comune (mappe, layout della pagina /map, ecc.).
+# Registers the common stylesheet (maps, /map page layout, etc.).
 register_asset "stylesheets/common/discourse-maps.scss"
 
-# Garantisce che l'icona del link "Mappa" in sidebar sia sempre disponibile,
-# indipendentemente dal set di icone di default configurato nel sito.
+# Ensures the "Map" sidebar link icon is always available, regardless of
+# the default icon set configured on the site.
 register_svg_icon "globe"
 
-# Icone del pulsante che apre/chiude i filtri su mobile (pagina /map).
+# Icons for the button that opens/closes filters on mobile (/map page).
 register_svg_icon "angle-up"
 register_svg_icon "angle-down"
 
-# Permette al composer di inviare il parametro "discourse_maps_location" alla
-# creazione del topic. Lo dichiariamo come :hash perché è un oggetto con più
-# campi (indirizzo + coordinate lat/lng).
+# Allows the composer to send the "discourse_maps_location" parameter when
+# creating a topic. We declare it as :hash because it's an object with
+# multiple fields (address + lat/lng coordinates).
 
 # ----------------------------------------------------------------------------
-#  Blocco di inizializzazione lato server.
+#  Server-side initialization block.
 # ----------------------------------------------------------------------------
 after_initialize do
-
   add_permitted_post_create_param("discourse_maps_location", :hash)
 
-  # Fa sopravvivere questi parametri nel payload di ReviewableQueuedPost, così
-  # da poterli recuperare in on(:approved_post) quando un post di un utente
-  # non ancora approvato viene messo in coda di moderazione e il post reale
-  # viene creato solo dopo l'ok dello staff (vedi apply_map_metadata sotto).
+  # Lets the location be set, corrected or removed by editing the topic's
+  # first post, instead of only at creation time (see
+  # DiscourseMaps.update_map_metadata below): without this, fixing a wrong
+  # address meant deleting the post and recreating it.
+  add_permitted_post_update_param("discourse_maps_location") do |post, location|
+    ::DiscourseMaps.update_map_metadata(post, location)
+  end
+
+  # Makes these parameters survive in the ReviewableQueuedPost payload, so
+  # they can be retrieved in on(:approved_post) when a post from a
+  # not-yet-approved user is put in the moderation queue and the actual
+  # post is only created after staff approval (see apply_map_metadata
+  # below).
   NewPostManager.add_plugin_payload_attribute("discourse_maps_location")
   NewPostManager.add_plugin_payload_attribute("discourse_maps_from_map")
 
-  # Namespace del modulo del plugin.
+  # Plugin module namespace.
   module ::DiscourseMaps
     PLUGIN_NAME = "discourse-maps"
 
-    # Nome del campo custom del topic in cui salviamo i dati geografici.
-    # Contiene: { address, lat, lng, display_name, country, start_date,
-    # end_date }. "address" è l'indirizzo digitato dall'utente, gli altri
-    # campi di geocoding sono il risultato del provider (il paese arriva già
-    # "interpretato", non digitato a mano, per evitare grafie diverse per lo
-    # stesso paese). start_date/end_date ("YYYY-MM-DD") sono il periodo di
-    # riferimento del topic, anch'esse digitate dall'utente nel modal.
+    # Name of the topic custom field where we store the geographic data.
+    # Contains: { address, lat, lng, display_name, country_code, country,
+    # start_date, end_date }. "address" is the address typed by the user,
+    # the other geocoding fields are the provider's result. The country is
+    # identified by "country_code" (ISO 3166-1 alpha-2): "country" is only
+    # the name as the provider returned it when the topic was saved, which
+    # depends on the locale in force at that moment, so it is never used as
+    # an identity (the client renders the name from the code instead).
+    # start_date/end_date ("YYYY-MM-DD") are the topic's reference period,
+    # also typed by the user in the modal.
     LOCATION_FIELD = "discourse_maps_location"
 
-    # Restituisce il tag "mappa" configurato nel pannello admin
-    # (impostazione `discourse_maps_map_tag_id`), oppure nil se non esiste.
+    # Practical stand-in for "no upper bound", used by the "upcoming"
+    # period filter (see date_filter_range below): a real event starting
+    # this far out would be a data entry mistake, not a legitimate
+    # open-ended range to support.
+    FAR_FUTURE_DATE = Date.new(9999, 12, 31)
+
+    # Returns the "map" tag configured in the admin panel (setting
+    # `discourse_maps_map_tag_id`), or nil if it doesn't exist.
     def self.map_tag
       Tag.find_by(id: SiteSetting.discourse_maps_map_tag_id)
     end
 
-    # Applica al topic i dati geografici e il tag "mappa", a partire dai
-    # parametri "discourse_maps_location" / "discourse_maps_from_map".
-    # Usato sia alla creazione diretta del post (on :post_created) sia
-    # all'approvazione di un post che era in coda di moderazione (on
-    # :approved_post), perché in quel secondo caso il post viene ricreato da
-    # ReviewableQueuedPost e :post_created non viene emesso.
-    def self.apply_map_metadata(topic, location, from_map)
+    # Whether the given user is allowed to use the "New topic" button on
+    # the /map page (setting `discourse_maps_new_topic_groups`: empty =
+    # admins only). This is the server-side counterpart of the check done
+    # in map-page.gjs to show/hide the button: without it, any user could
+    # get the staff-only "map" tag applied by sending
+    # "discourse_maps_from_map" directly, bypassing the admin's intended
+    # restriction on who may publish to the public map.
+    def self.user_allowed_from_map?(user)
+      return false unless user
+      return true if user.admin?
+
+      group_ids = SiteSetting.discourse_maps_new_topic_groups_map
+      group_ids.present? &&
+        GroupUser.where(user_id: user.id, group_id: group_ids).exists?
+    end
+
+    # Applies the geographic data and the "map" tag to the topic, based on
+    # the "discourse_maps_location" / "discourse_maps_from_map"
+    # parameters. Used both on direct post creation (on :post_created) and
+    # on approval of a post that was in the moderation queue (on
+    # :approved_post), because in that second case the post is recreated
+    # by ReviewableQueuedPost and :post_created is not emitted.
+    def self.apply_map_metadata(topic, location, from_map, user)
+      from_map = false unless user_allowed_from_map?(user)
+      location = sanitize_location(location)
       return if location.blank? && from_map.blank?
 
       if location.present?
@@ -89,9 +124,45 @@ after_initialize do
       end
     end
 
-    # Scope di base: topic con tag "mappa", posizione salvata e visibili
-    # all'utente (guardian). Non applica i filtri categoria/tag: è la base
-    # sia per l'elenco dei topic sia per calcolare le opzioni dei filtri.
+    # Applies a location change made while editing the topic's first post
+    # (see add_permitted_post_update_param above): a present location
+    # overwrites the custom field, after sanitizing it like on creation
+    # (see apply_map_metadata/sanitize_location); a blank one removes it
+    # entirely, together with the "map" tag (the only way to drop it,
+    # since the tag group is staff-only and the tag selector hides it
+    # from the composer). Silently ignored for a reply (only the first
+    # post carries a location) or for a malformed location (missing/
+    # invalid fields) coming from a non-compliant client: the modal's own
+    # required fields prevent this through normal use, same reasoning as
+    # the creation-time check in NewPostManager.add_handler below.
+    def self.update_map_metadata(post, location)
+      return unless post.is_first_post?
+
+      topic = post.topic
+
+      if location.blank?
+        remove_map_metadata(topic)
+      else
+        apply_map_metadata(topic, location, nil, post.user)
+      end
+    end
+
+    # Removes the location and the "map" tag from a topic: the reverse of
+    # apply_map_metadata, used when a location is unset while editing.
+    def self.remove_map_metadata(topic)
+      topic.custom_fields.delete(LOCATION_FIELD)
+      topic.save_custom_fields(true)
+
+      tag = map_tag
+      if tag && topic.tags.include?(tag)
+        topic.tags = topic.tags - [tag]
+        topic.save!
+      end
+    end
+
+    # Base scope: topics with the "map" tag, a saved location, and visible
+    # to the user (guardian). Doesn't apply the category/tag filters: it's
+    # the base for both the topic list and the filter options calculation.
     def self.base_map_scope(guardian)
       tag = map_tag
       return nil unless tag
@@ -105,100 +176,180 @@ after_initialize do
           .secured(guardian)
           .where(id: topic_ids)
           .joins(:topic_tags)
-          .where(topic_tags: { tag_id: tag.id }) # vincolo tag "mappa"
+          .where(topic_tags: { tag_id: tag.id }) # "map" tag constraint
 
       { scope: scope, tag: tag }
     end
 
-    # Filtra uno scope per tag: il topic deve possedere TUTTI i tag indicati.
+    # Filters a scope by tag: the topic must have ALL the given tags.
     def self.filter_by_tags(scope, tag_names)
       Tag
         .where(name: tag_names)
         .pluck(:id)
-        .each { |tid| scope = scope.where(id: TopicTag.where(tag_id: tid).select(:topic_id)) }
+        .each do |tid|
+          scope = scope.where(id: TopicTag.where(tag_id: tid).select(:topic_id))
+        end
       scope
     end
 
-    # Filtra uno scope per paese. Il paese è salvato solo dentro il custom
-    # field JSON (LOCATION_FIELD), non è una colonna: il confronto va fatto
-    # leggendo e parsando il JSON, non con una where SQL.
-    def self.filter_by_countries(scope, country_names)
-      scope.where(id: topic_ids_matching_countries(scope, country_names))
+    # Filters a scope by country. The country is only stored inside the
+    # JSON custom field (LOCATION_FIELD), it's not a column: the
+    # comparison must be done by reading and parsing the JSON, not with a
+    # SQL where.
+    def self.filter_by_countries(scope, country_keys)
+      scope.where(id: topic_ids_matching_countries(scope, country_keys))
     end
 
-    def self.topic_ids_matching_countries(scope, country_names)
+    def self.topic_ids_matching_countries(scope, country_keys)
       TopicCustomField
-        .where(topic_id: scope.distinct.pluck("topics.id"), name: LOCATION_FIELD)
+        .where(
+          topic_id: scope.distinct.pluck("topics.id"),
+          name: LOCATION_FIELD
+        )
         .pluck(:topic_id, :value)
-        .select { |_, value| country_names.include?(parse_country(value)) }
+        .select { |_, value| country_keys.include?(parse_country_key(value)) }
         .map(&:first)
     end
 
-    # Elenco (ordinato, senza duplicati) dei paesi presenti tra i topic dello
-    # scope indicato.
+    # (De-duplicated) list of the countries present among the topics of the
+    # given scope, as { id, name } pairs whose id is the ISO 3166-1 alpha-2
+    # code. The name is the one stored at save time and is only a fallback:
+    # the client renders the code in the site's language, so the same
+    # country is a single entry even across topics saved under different
+    # locales.
     def self.countries_for_scope(scope)
-      names =
-        TopicCustomField
-          .where(topic_id: scope.distinct.pluck("topics.id"), name: LOCATION_FIELD)
-          .pluck(:value)
-          .map { |value| parse_country(value) }
-          .reject(&:blank?)
-          .uniq
-          .sort
-
-      names.map { |name| { id: name, name: name } }
+      TopicCustomField
+        .where(
+          topic_id: scope.distinct.pluck("topics.id"),
+          name: LOCATION_FIELD
+        )
+        .pluck(:value)
+        .filter_map { |value| country_entry(value) }
+        .uniq { |entry| entry[:id] }
+        .sort_by { |entry| entry[:name] }
     end
 
-    # Il custom field è salvato come JSON: estrae il paese in modo sicuro
-    # (nil se il valore non è presente o non è un JSON valido).
-    def self.parse_country(raw_value)
+    # Country of a stored location, as the { id, name } pair the filter
+    # expects. Topics saved before country_code was introduced fall back to
+    # the stored name as their id, so they stay filterable until the
+    # backfill task (lib/tasks/discourse_maps.rake) gives them a code.
+    def self.country_entry(raw_value)
+      data = parse_location(raw_value)
+      return nil unless data
+
+      code = data["country_code"].presence&.upcase
+      name = data["country"].presence
+      return nil if code.blank? && name.blank?
+
+      { id: code || name, name: name || code }
+    end
+
+    # Identity of the country for a stored location: the ISO code, or the
+    # stored name for topics that don't have one yet.
+    def self.parse_country_key(raw_value)
+      country_entry(raw_value)&.fetch(:id)
+    end
+
+    # The custom field is stored as JSON: safely parses it (nil if the
+    # value is missing or not valid JSON).
+    def self.parse_location(raw_value)
       return nil if raw_value.blank?
 
-      JSON.parse(raw_value)["country"]
+      data = JSON.parse(raw_value)
+      data.is_a?(Hash) ? data : nil
     rescue JSON::ParserError
       nil
     end
 
-    # Estrae il periodo (data inizio/fine) dal custom field JSON. Restituisce
-    # nil se il valore non è presente/valido o se manca una delle due date:
-    # sono obbligatorie entrambe alla creazione, ma i topic salvati prima
-    # dell'introduzione di questa feature non le hanno, e semplicemente non
-    # compariranno mai nei filtri per data (restano visibili senza filtro).
+    # Extracts the period (start/end date) from the JSON custom field.
+    # Returns nil if the value is missing/invalid or if one of the two
+    # dates is missing: both are required at creation time, but topics
+    # saved before this feature was introduced don't have them, and will
+    # simply never show up in the date filters (they remain visible
+    # without a filter).
     def self.parse_date_range(raw_value)
-      return nil if raw_value.blank?
+      data = parse_location(raw_value)
+      return nil unless data
 
-      data = JSON.parse(raw_value)
       start_date = data["start_date"]
       end_date = data["end_date"]
       return nil if start_date.blank? || end_date.blank?
 
       [Date.parse(start_date), Date.parse(end_date)]
-    rescue JSON::ParserError, ArgumentError, TypeError
+    rescue ArgumentError, TypeError
       nil
     end
 
-    # Valida il periodo (inizio/fine) di una posizione così come arriva dal
-    # composer (hash con chiavi simbolo o stringa, non ancora serializzato in
-    # JSON): entrambe le date devono essere presenti e la fine non deve
-    # precedere l'inizio. Usato per il controllo server-side alla creazione
-    # del post (vedi NewPostManager.add_handler più sotto), a garanzia
-    # dell'invariante anche se il client non validasse correttamente (bug,
-    # chiamata diretta alle API, ecc.).
-    def self.valid_location_dates?(location)
-      start_date = location[:start_date] || location["start_date"]
-      end_date = location[:end_date] || location["end_date"]
-      return false if start_date.blank? || end_date.blank?
+    # Max length kept for the free-text fields of a location: generous
+    # enough for any real address/display name, but short enough to keep
+    # a malicious or buggy client from stuffing the custom field (and the
+    # page that renders it) with an unbounded string.
+    MAX_TEXT_LENGTH = 500
 
-      Date.parse(start_date.to_s) <= Date.parse(end_date.to_s)
+    # ISO 3166-1 alpha-2: exactly two letters.
+    COUNTRY_CODE_REGEXP = /\A[a-zA-Z]{2}\z/
+
+    # Validates and normalizes a location as it arrives from the composer
+    # (hash with symbol or string keys, possibly an ActionController::Parameters,
+    # not yet serialized to JSON) into the plain Hash we actually persist.
+    # Returns nil if it isn't acceptable: lat/lng missing or out of range,
+    # or start/end date missing, unparseable or in the wrong order.
+    #
+    # This is the only place allowed to decide what ends up in the
+    # LOCATION_FIELD custom field: it whitelists the known keys (instead
+    # of storing whatever hash the client sent) and coerces every value
+    # to the expected type, so a non-compliant client (bug, direct API
+    # call) can at most store a well-formed location, never arbitrary
+    # keys/types riding along with it.
+    def self.sanitize_location(raw_location)
+      return nil if raw_location.blank?
+
+      location =
+        (
+          if raw_location.respond_to?(:to_unsafe_h)
+            raw_location.to_unsafe_h
+          else
+            raw_location
+          end
+        ).stringify_keys
+
+      lat = Float(location["lat"], exception: false)
+      lng = Float(location["lng"], exception: false)
+      return nil if lat.nil? || lng.nil?
+      return nil unless lat.between?(-90, 90) && lng.between?(-180, 180)
+
+      start_date = Date.parse(location["start_date"].to_s)
+      end_date = Date.parse(location["end_date"].to_s)
+      return nil if end_date < start_date
+
+      country_code = location["country_code"].to_s.strip.upcase
+      country_code = nil unless country_code.match?(COUNTRY_CODE_REGEXP)
+
+      {
+        "address" => location["address"].to_s.strip.truncate(MAX_TEXT_LENGTH),
+        "lat" => lat,
+        "lng" => lng,
+        "display_name" =>
+          location["display_name"].to_s.strip.truncate(MAX_TEXT_LENGTH),
+        "country_code" => country_code,
+        "country" => location["country"].to_s.strip.truncate(MAX_TEXT_LENGTH),
+        "start_date" => start_date.to_s,
+        "end_date" => end_date.to_s
+      }
     rescue ArgumentError, TypeError
-      false
+      nil
     end
 
-    # Converte i parametri di filtro anno/mese/giorno (eventualmente parziali)
-    # nell'intervallo di date corrispondente, usato per il confronto "overlap"
-    # con il periodo di ciascun topic. nil se l'anno non è indicato (nessun
-    # filtro per data) o se la combinazione non è una data valida.
-    def self.date_filter_range(year, month, day)
+    # Converts the (possibly partial) year/month/day filter parameters
+    # into the corresponding date range, used for the "overlap" comparison
+    # with each topic's period. nil if neither a year nor `upcoming` is
+    # given (no date filter) or if the year/month/day combination isn't a
+    # valid date. `upcoming` (today onward, no upper bound) only applies
+    # when no year is given: an explicit year/month/day always wins, same
+    # as a user picking a date overriding the page's default on open (see
+    # routes/map.js).
+    def self.date_filter_range(year, month, day, upcoming: false)
+      return Date.current, FAR_FUTURE_DATE if year.blank? && upcoming
       return nil if year.blank?
 
       year = year.to_i
@@ -220,128 +371,154 @@ after_initialize do
       nil
     end
 
-    # Periodi (coppie [inizio, fine]) dei topic dello scope indicato, con
-    # periodo valido. Base comune per il calcolo delle opzioni anno/mese/giorno.
+    # Periods ([start, end] pairs) of the topics of the given scope, with
+    # a valid period. Common base for calculating the year/month/day
+    # options.
     def self.date_ranges_for_scope(scope)
       TopicCustomField
-        .where(topic_id: scope.distinct.pluck("topics.id"), name: LOCATION_FIELD)
+        .where(
+          topic_id: scope.distinct.pluck("topics.id"),
+          name: LOCATION_FIELD
+        )
         .pluck(:value)
         .map { |value| parse_date_range(value) }
         .compact
     end
 
-    # Filtra uno scope per periodo: il topic deve avere un periodo che si
-    # sovrappone (overlap) all'intervallo [filter_start, filter_end] indicato.
+    # Filters a scope by period: the topic must have a period that
+    # overlaps the given [filter_start, filter_end] interval.
     def self.filter_by_date_range(scope, filter_start, filter_end)
-      scope.where(id: topic_ids_matching_date_range(scope, filter_start, filter_end))
+      scope.where(
+        id: topic_ids_matching_date_range(scope, filter_start, filter_end)
+      )
     end
 
     def self.topic_ids_matching_date_range(scope, filter_start, filter_end)
       TopicCustomField
-        .where(topic_id: scope.distinct.pluck("topics.id"), name: LOCATION_FIELD)
+        .where(
+          topic_id: scope.distinct.pluck("topics.id"),
+          name: LOCATION_FIELD
+        )
         .pluck(:topic_id, :value)
-        .select { |_, value|
+        .select do |_, value|
           range = parse_date_range(value)
           range && range[0] <= filter_end && range[1] >= filter_start
-        }
+        end
         .map(&:first)
     end
 
-    # Anni disponibili nello scope indicato: un topic il cui periodo attraversa
-    # più anni compare in ognuno di essi (coerente con la logica "overlap").
+    # Years available in the given scope: a topic whose period spans
+    # multiple years shows up in each of them (consistent with the
+    # "overlap" logic).
     def self.years_for_scope(scope)
       years =
         date_ranges_for_scope(scope)
-          .flat_map { |start_date, end_date| (start_date.year..end_date.year).to_a }
+          .flat_map do |start_date, end_date|
+            (start_date.year..end_date.year).to_a
+          end
           .uniq
           .sort
 
       years.map { |year| { id: year, name: year.to_s } }
     end
 
-    # Mesi disponibili nello scope indicato per l'anno selezionato: ogni
-    # periodo viene "ritagliato" sui confini dell'anno prima di estrarne i
-    # mesi, così un topic che attraversa più anni contribuisce solo con i mesi
-    # effettivamente ricadenti in quell'anno.
+    # Months available in the given scope for the selected year: each
+    # period is "clipped" to the year's boundaries before extracting its
+    # months, so a topic spanning multiple years only contributes the
+    # months that actually fall within that year.
     def self.months_for_scope(scope, year)
       year_start = Date.new(year, 1, 1)
       year_end = Date.new(year, 12, 31)
 
       months =
         date_ranges_for_scope(scope)
-          .flat_map { |start_date, end_date|
+          .flat_map do |start_date, end_date|
             clipped_start = [start_date, year_start].max
             clipped_end = [end_date, year_end].min
             next [] if clipped_start > clipped_end
 
             (clipped_start.month..clipped_end.month).to_a
-          }
+          end
           .uniq
           .sort
 
       months.map { |month| { id: month, name: month.to_s } }
     end
 
-    # Giorni disponibili nello scope indicato per anno/mese selezionati: stessa
-    # logica di ritaglio dei mesi, applicata ai confini del mese.
+    # Days available in the given scope for the selected year/month: same
+    # clipping logic as months, applied to the month's boundaries.
     def self.days_for_scope(scope, year, month)
       month_start = Date.new(year, month, 1)
       month_end = month_start.end_of_month
 
       days =
         date_ranges_for_scope(scope)
-          .flat_map { |start_date, end_date|
+          .flat_map do |start_date, end_date|
             clipped_start = [start_date, month_start].max
             clipped_end = [end_date, month_end].min
             next [] if clipped_start > clipped_end
 
             (clipped_start.day..clipped_end.day).to_a
-          }
+          end
           .uniq
           .sort
 
       days.map { |day| { id: day, name: day.to_s } }
     end
 
-    # Raccoglie i topic da mostrare nella pagina /map, ordinati per data di
-    # creazione decrescente. Rispetta i permessi dell'utente (guardian) e
-    # restituisce solo i dati necessari a mappa e lista.
+    # Collects the topics to show on the /map page, ordered by descending
+    # creation date. Respects the user's permissions (guardian) and
+    # returns only the data needed by the map and the list.
     #
-    # Filtri opzionali:
-    #   - category_id   : mostra solo i topic della categoria indicata;
-    #   - tag_names     : mostra solo i topic che hanno TUTTI i tag indicati
-    #                     (il vincolo del tag "mappa" resta sempre applicato);
-    #   - country_names : mostra solo i topic il cui indirizzo è in uno dei
-    #                     paesi indicati;
-    #   - year/month/day: mostra solo i topic il cui periodo (inizio/fine) si
-    #                     sovrappone al periodo indicato (anno, anno+mese o
-    #                     data esatta a seconda di quali sono presenti).
-    def self.map_topics(guardian, category_id: nil, tag_names: [], country_names: [], year: nil, month: nil, day: nil)
+    # Optional filters:
+    #   - category_id   : shows only topics in the given category;
+    #   - tag_names     : shows only topics that have ALL the given tags
+    #                     (the "map" tag constraint is always applied);
+    #   - country_keys  : shows only topics whose address is in one of the
+    #                     given countries (ISO 3166-1 alpha-2 codes);
+    #   - year/month/day: shows only topics whose period (start/end)
+    #                     overlaps the given period (year, year+month or
+    #                     exact date depending on which are present);
+    #   - upcoming      : with no year given, shows only topics whose
+    #                     period hasn't ended yet (today onward); the
+    #                     default view on /map, "today" or "upcoming",
+    #                     is controlled by the discourse_maps_default_date_filter
+    #                     site setting (applied client-side, see routes/map.js).
+    def self.map_topics(
+      guardian,
+      category_id: nil,
+      tag_names: [],
+      country_keys: [],
+      year: nil,
+      month: nil,
+      day: nil,
+      upcoming: false
+    )
       base = base_map_scope(guardian)
       return [] unless base
 
       scope = base[:scope]
 
-      # Filtro per categoria.
+      # Category filter.
       scope = scope.where(category_id: category_id) if category_id.present?
 
-      # Filtro per tag: il topic deve possedere tutti i tag selezionati.
+      # Tag filter: the topic must have all the selected tags.
       scope = filter_by_tags(scope, tag_names) if tag_names.present?
 
-      # Filtro per paese.
-      scope = filter_by_countries(scope, country_names) if country_names.present?
+      # Country filter.
+      scope = filter_by_countries(scope, country_keys) if country_keys.present?
 
-      # Filtro per periodo.
-      date_range = date_filter_range(year, month, day)
+      # Period filter.
+      date_range = date_filter_range(year, month, day, upcoming: upcoming)
       scope = filter_by_date_range(scope, *date_range) if date_range
 
       topics = scope.includes(:tags).distinct.order(created_at: :desc).to_a
 
-      # Precarica i custom field per evitare query N+1.
+      # Preload custom fields to avoid N+1 queries.
       Topic.preload_custom_fields(topics, [LOCATION_FIELD])
 
-      # Topic già letti (almeno un post) dall'utente corrente, per la classe
-      # "visited" nella lista (come nella topic-list nativa).
+      # Topics already read (at least one post) by the current user, for
+      # the "visited" class in the list (like in the native topic list).
       visited_topic_ids =
         if guardian.user
           TopicUser
@@ -368,38 +545,71 @@ after_initialize do
           posts_count: topic.posts_count,
           last_posted_at: topic.last_posted_at,
           created_at: topic.created_at,
-          visited: visited_topic_ids.include?(topic.id),
+          visited: visited_topic_ids.include?(topic.id)
         }
       end
     end
 
-    # Opzioni disponibili per i filtri categoria/tag/paese/periodo: incrociate
-    # tra loro (AND), così che scegliere un filtro aggiorni le opzioni degli
-    # altri mostrando solo quelle che non porterebbero a zero risultati con i
-    # filtri già impostati. Anno/mese/giorno hanno in più una gerarchia tra
-    # loro (il mese dipende dall'anno scelto, il giorno da anno+mese): le
-    # opzioni di un livello più specifico sono calcolate solo se il livello
-    # superiore è già selezionato.
-    def self.map_filter_options(guardian, category_id: nil, tag_names: [], country_names: [], year: nil, month: nil, day: nil)
+    # Available options for the category/tag/country/period filters:
+    # cross-referenced with each other (AND), so that choosing one filter
+    # updates the other filters' options, showing only the ones that
+    # wouldn't lead to zero results with the filters already set.
+    # Year/month/day additionally have a hierarchy among them (month
+    # depends on the chosen year, day on year+month): the options for a
+    # more specific level are only calculated if the higher level is
+    # already selected.
+    def self.map_filter_options(
+      guardian,
+      category_id: nil,
+      tag_names: [],
+      country_keys: [],
+      year: nil,
+      month: nil,
+      day: nil,
+      upcoming: false
+    )
       base = base_map_scope(guardian)
-      return { category_ids: [], tags: [], countries: [], years: [], months: [], days: [] } unless base
+      unless base
+        return(
+          {
+            category_ids: [],
+            tags: [],
+            countries: [],
+            years: [],
+            months: [],
+            days: []
+          }
+        )
+      end
 
       scope = base[:scope]
       tag = base[:tag]
-      date_range = date_filter_range(year, month, day)
+      date_range = date_filter_range(year, month, day, upcoming: upcoming)
 
-      # Categorie disponibili: rispettano i filtri tag, paese e periodo già impostati.
+      # Available categories: respect the tag, country and period filters already set.
       scope_for_categories = scope
-      scope_for_categories = filter_by_tags(scope_for_categories, tag_names) if tag_names.present?
-      scope_for_categories = filter_by_countries(scope_for_categories, country_names) if country_names.present?
-      scope_for_categories = filter_by_date_range(scope_for_categories, *date_range) if date_range
+      scope_for_categories =
+        filter_by_tags(scope_for_categories, tag_names) if tag_names.present?
+      scope_for_categories =
+        filter_by_countries(
+          scope_for_categories,
+          country_keys
+        ) if country_keys.present?
+      scope_for_categories =
+        filter_by_date_range(scope_for_categories, *date_range) if date_range
       category_ids = scope_for_categories.distinct.pluck(:category_id).compact
 
-      # Tag disponibili: rispettano i filtri categoria, paese e periodo già impostati.
+      # Available tags: respect the category, country and period filters already set.
       scope_for_tags = scope
-      scope_for_tags = scope_for_tags.where(category_id: category_id) if category_id.present?
-      scope_for_tags = filter_by_countries(scope_for_tags, country_names) if country_names.present?
-      scope_for_tags = filter_by_date_range(scope_for_tags, *date_range) if date_range
+      scope_for_tags =
+        scope_for_tags.where(category_id: category_id) if category_id.present?
+      scope_for_tags =
+        filter_by_countries(
+          scope_for_tags,
+          country_keys
+        ) if country_keys.present?
+      scope_for_tags =
+        filter_by_date_range(scope_for_tags, *date_range) if date_range
 
       tag_ids =
         TopicTag
@@ -408,88 +618,130 @@ after_initialize do
           .distinct
           .pluck(:tag_id)
 
-      tags = Tag.where(id: tag_ids).order(:name).pluck(:id, :name).map { |id, name| { id: id, name: name } }
+      tags =
+        Tag
+          .where(id: tag_ids)
+          .order(:name)
+          .pluck(:id, :name)
+          .map { |id, name| { id: id, name: name } }
 
-      # Paesi disponibili: rispettano i filtri categoria, tag e periodo già impostati.
+      # Available countries: respect the category, tag and period filters already set.
       scope_for_countries = scope
-      scope_for_countries = scope_for_countries.where(category_id: category_id) if category_id.present?
-      scope_for_countries = filter_by_tags(scope_for_countries, tag_names) if tag_names.present?
-      scope_for_countries = filter_by_date_range(scope_for_countries, *date_range) if date_range
+      scope_for_countries =
+        scope_for_countries.where(
+          category_id: category_id
+        ) if category_id.present?
+      scope_for_countries =
+        filter_by_tags(scope_for_countries, tag_names) if tag_names.present?
+      scope_for_countries =
+        filter_by_date_range(scope_for_countries, *date_range) if date_range
       countries = countries_for_scope(scope_for_countries)
 
-      # Anni/mesi/giorni disponibili: rispettano i filtri categoria/tag/paese
-      # già impostati (non il periodo stesso, che è gerarchico tra i tre).
+      # Available years/months/days: respect the category/tag/country
+      # filters already set (not the period itself, which is hierarchical
+      # among the three).
       scope_for_dates = scope
-      scope_for_dates = scope_for_dates.where(category_id: category_id) if category_id.present?
-      scope_for_dates = filter_by_tags(scope_for_dates, tag_names) if tag_names.present?
-      scope_for_dates = filter_by_countries(scope_for_dates, country_names) if country_names.present?
+      scope_for_dates =
+        scope_for_dates.where(category_id: category_id) if category_id.present?
+      scope_for_dates =
+        filter_by_tags(scope_for_dates, tag_names) if tag_names.present?
+      scope_for_dates =
+        filter_by_countries(
+          scope_for_dates,
+          country_keys
+        ) if country_keys.present?
 
       years = years_for_scope(scope_for_dates)
       months = year.present? ? months_for_scope(scope_for_dates, year.to_i) : []
-      days = (year.present? && month.present?) ? days_for_scope(scope_for_dates, year.to_i, month.to_i) : []
+      days =
+        (
+          if year.present? && month.present?
+            days_for_scope(scope_for_dates, year.to_i, month.to_i)
+          else
+            []
+          end
+        )
 
-      { category_ids: category_ids, tags: tags, countries: countries, years: years, months: months, days: days }
+      {
+        category_ids: category_ids,
+        tags: tags,
+        countries: countries,
+        years: years,
+        months: months,
+        days: days
+      }
     end
   end
 
-  # Registra il tipo del campo custom come JSON: in lettura otterremo un Hash,
-  # in scrittura verrà serializzato automaticamente in JSON.
+  # Registers the custom field type as JSON: reading returns a Hash,
+  # writing automatically serializes it to JSON.
   Topic.register_custom_field_type(::DiscourseMaps::LOCATION_FIELD, :json)
 
   # --------------------------------------------------------------------------
-  #  Verifica server-side, alla creazione del post: un topic geolocalizzato
-  #  deve avere sia data di inizio sia data di fine (vedi
-  #  DiscourseMaps.valid_location_dates?). Il modal del composer valida già
-  #  questo vincolo lato client, ma senza un controllo qui un client diverso
-  #  (bug, chiamata diretta alle API) potrebbe comunque creare un topic con
-  #  posizione ma senza periodo, che non comparirebbe mai nei filtri per data
-  #  di /map-under-dev. Si applica solo alla creazione di un nuovo topic
-  #  (manager.args[:topic_id] assente): la posizione/il periodo riguardano
-  #  solo il primo post, come la posizione stessa.
+  #  Server-side check, on post creation: a geolocated topic must have a
+  #  valid location (lat/lng in range, start/end date present and
+  #  ordered; see DiscourseMaps.sanitize_location). The composer modal
+  #  already validates this client-side, but without a check here a
+  #  different client (bug, direct API call) could still create a topic
+  #  with a malformed location, which would silently never show up on
+  #  the map or in its filters (see apply_map_metadata). This only
+  #  applies to the creation of a new topic (manager.args[:topic_id]
+  #  absent): the location/period concern only the first post, just like
+  #  the location itself.
   # --------------------------------------------------------------------------
   NewPostManager.add_handler do |manager|
-    location = manager.args[:discourse_maps_location] || manager.args["discourse_maps_location"]
+    location =
+      manager.args[:discourse_maps_location] ||
+        manager.args["discourse_maps_location"]
 
-    if manager.args[:topic_id].blank? && location.present? && !::DiscourseMaps.valid_location_dates?(location)
-      next manager.create_error_result(I18n.t("discourse_maps.errors.missing_dates"))
+    if manager.args[:topic_id].blank? && location.present? &&
+         !::DiscourseMaps.sanitize_location(location)
+      next(
+        manager.create_error_result(
+          I18n.t("discourse_maps.errors.invalid_location")
+        )
+      )
     end
 
     nil
   end
 
   # --------------------------------------------------------------------------
-  #  Alla creazione del primo post di un topic:
-  #   1. salviamo i dati geografici (se presenti) nel custom field del topic;
-  #   2. assegniamo automaticamente il tag "mappa" configurato in admin.
+  #  On creation of a topic's first post:
+  #   1. we save the geographic data (if present) in the topic's custom field;
+  #   2. we automatically assign the "map" tag configured in admin.
   # --------------------------------------------------------------------------
-  on(:post_created) do |post, opts, _user|
-    # Ci interessa solo il primo post (il topic vero e proprio).
+  on(:post_created) do |post, opts, user|
+    # We only care about the first post (the actual topic).
     next unless post.is_first_post?
 
-    # Il parametro può arrivare con chiave simbolo o stringa: gestiamo entrambi.
+    # The parameter can arrive with a symbol or string key: we handle both.
     location = opts[:discourse_maps_location] || opts["discourse_maps_location"]
     from_map = opts[:discourse_maps_from_map] || opts["discourse_maps_from_map"]
 
-    # Assegnazione automatica del tag "mappa" (id letto dall'impostazione) e
-    # salvataggio della posizione. Il tag viene assegnato anche senza
-    # posizione quando il topic è stato creato dal pulsante "Nuovo topic"
-    # della pagina /map: il tag group è riservato allo staff, quindi un
-    # utente normale non può assegnarlo da solo tramite il composer (il
-    # selettore lo nasconde e comunque il server lo filtrerebbe) e senza
-    # questo bypass non comparirebbe mai nella lista di /map.
-    ::DiscourseMaps.apply_map_metadata(post.topic, location, from_map)
+    # Automatic assignment of the "map" tag (id read from the setting) and
+    # saving of the location. The tag is assigned even without a location
+    # when the topic was created via the "New topic" button on the /map
+    # page: the tag group is staff-only, so a normal user can't assign it
+    # themselves through the composer (the selector hides it and the
+    # server would filter it out anyway), and without this bypass it
+    # would never show up in the /map list. apply_map_metadata re-checks
+    # `user` against discourse_maps_new_topic_groups: without it, any
+    # user could send discourse_maps_from_map directly and bypass the
+    # setting, which only gates the button client-side.
+    ::DiscourseMaps.apply_map_metadata(post.topic, location, from_map, user)
   end
 
   # --------------------------------------------------------------------------
-  #  Caso utenti non ancora approvati (o comunque soggetti a moderazione dei
-  #  nuovi topic): il post reale NON viene creato subito, ma viene messo in
-  #  coda (ReviewableQueuedPost) e ricreato solo quando lo staff approva.
-  #  In quel momento :post_created non viene emesso (viene passato
-  #  skip_events) e gli opts custom non arrivano comunque, perché
-  #  ReviewableQueuedPost ricostruisce gli opts dal proprio "payload", che di
-  #  default contiene solo raw/title/tags/category. Per questo registriamo i
-  #  nostri parametri come "plugin payload attribute" (sopravvivono nel
-  #  payload) e li applichiamo qui, ad approvazione avvenuta.
+  #  Case of not-yet-approved users (or otherwise subject to new topic
+  #  moderation): the actual post is NOT created immediately, but is
+  #  queued (ReviewableQueuedPost) and recreated only when staff approves
+  #  it. At that point :post_created is not emitted (skip_events is
+  #  passed) and the custom opts don't arrive anyway, because
+  #  ReviewableQueuedPost rebuilds the opts from its own "payload", which
+  #  by default only contains raw/title/tags/category. This is why we
+  #  register our parameters as "plugin payload attribute" (they survive
+  #  in the payload) and apply them here, once approval has happened.
   # --------------------------------------------------------------------------
   on(:approved_post) do |reviewable, post|
     next unless post&.is_first_post?
@@ -498,60 +750,70 @@ after_initialize do
     location = payload["discourse_maps_location"]
     from_map = payload["discourse_maps_from_map"]
 
-    ::DiscourseMaps.apply_map_metadata(post.topic, location, from_map)
+    ::DiscourseMaps.apply_map_metadata(
+      post.topic,
+      location,
+      from_map,
+      post.user
+    )
   end
 
   # --------------------------------------------------------------------------
-  #  Espone i dati geografici del topic al client (pagina del topic), così da
-  #  poter disegnare la mappa. L'attributo viene incluso solo se presente.
+  #  Exposes the topic's geographic data to the client (topic page), so
+  #  the map can be drawn. The attribute is only included if present.
   # --------------------------------------------------------------------------
   add_to_serializer(
     :topic_view,
     :discourse_maps_location,
-    include_condition: -> { object.topic.custom_fields[::DiscourseMaps::LOCATION_FIELD].present? },
+    include_condition: -> do
+      object.topic.custom_fields[::DiscourseMaps::LOCATION_FIELD].present?
+    end
   ) { object.topic.custom_fields[::DiscourseMaps::LOCATION_FIELD] }
 
   # --------------------------------------------------------------------------
-  #  Controller della pagina /map.
-  #   - richiesta HTML: avvia l'app Ember (che poi renderizza la pagina);
-  #   - richiesta JSON: restituisce i topic con tag mappa + posizione.
+  #  /map page controller.
+  #   - HTML request: boots the Ember app (which then renders the page);
+  #   - JSON request: returns the topics with the map tag + location.
   # --------------------------------------------------------------------------
   class ::DiscourseMaps::MapController < ::ApplicationController
     requires_plugin ::DiscourseMaps::PLUGIN_NAME
 
-    # Per il caricamento diretto della pagina (HTML) non è una richiesta XHR.
+    # For the direct (HTML) page load this isn't an XHR request.
     skip_before_action :check_xhr, only: [:index]
 
     def index
       respond_to do |format|
-        # Avvia l'applicazione Ember: sarà la rotta client a chiedere il JSON.
+        # Boots the Ember application: the client route will then request the JSON.
         format.html { render "default/empty" }
 
-        # Dati per la mappa e la lista, filtrati per permessi utente e per gli
-        # eventuali filtri di categoria/tag passati come parametri di query.
+        # Data for the map and the list, filtered by user permissions and
+        # by any category/tag filters passed as query parameters.
         format.json do
           tag_names = Array(params[:tags]&.split(","))
-          country_names = Array(params[:countries]&.split(","))
+          country_keys = Array(params[:countries]&.split(","))
+          upcoming = ActiveModel::Type::Boolean.new.cast(params[:upcoming])
 
           topics =
             ::DiscourseMaps.map_topics(
               guardian,
               category_id: params[:category_id],
               tag_names: tag_names,
-              country_names: country_names,
+              country_keys: country_keys,
               year: params[:year],
               month: params[:month],
               day: params[:day],
+              upcoming: upcoming
             )
           filters =
             ::DiscourseMaps.map_filter_options(
               guardian,
               category_id: params[:category_id],
               tag_names: tag_names,
-              country_names: country_names,
+              country_keys: country_keys,
               year: params[:year],
               month: params[:month],
               day: params[:day],
+              upcoming: upcoming
             )
 
           render json: { topics: topics, filters: filters }
@@ -560,13 +822,8 @@ after_initialize do
     end
   end
 
-  # Registra la rotta /map-under-dev (serve sia l'HTML sia /map-under-dev.json).
-  # Path volutamente non intuitivo: la feature è già stata comunicata al
-  # committente ma non deve essere raggiungibile dagli utenti prima del
-  # rilascio ufficiale (il plugin resta comunque abilitato per continuare lo
-  # sviluppo).
-  Discourse::Application.routes.append { get "/map-under-dev" => "discourse_maps/map#index" }
+  # Registers the /map route (serves both the HTML and /map.json).
+  Discourse::Application.routes.append do
+    get "/map" => "discourse_maps/map#index"
+  end
 end
-
-
-

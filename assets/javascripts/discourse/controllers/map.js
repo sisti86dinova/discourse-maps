@@ -1,103 +1,122 @@
 // ============================================================================
-//  Discourse Maps - Controller della pagina /map.
+//  Discourse Maps - /map page controller.
 //
-//  Gestisce lo stato dei filtri (categoria, tag e paese) come query param,
-//  così che siano condivisibili tramite URL e persistano al refresh della
-//  pagina.
+//  Manages the filter state (category, tags and country) as query params,
+//  so they're shareable via URL and persist across page refresh.
 // ============================================================================
 
 import Controller from "@ember/controller";
 import { action, computed } from "@ember/object";
 
 export default class MapController extends Controller {
-  // Query param sincronizzati con l'URL.
-  queryParams = ["category_id", "tags", "countries", "year", "month", "day"];
+  // Query params synced with the URL.
+  queryParams = [
+    "category_id",
+    "tags",
+    "countries",
+    "year",
+    "month",
+    "day",
+    "upcoming",
+  ];
 
   category_id = null;
-  // I tag selezionati sono memorizzati come stringa CSV (es. "eventi,news").
+  // Selected tags are stored as a CSV string (e.g. "events,news").
   tags = null;
-  // I paesi selezionati sono memorizzati come stringa CSV.
+  // Selected countries are stored as a CSV string of ISO 3166-1 alpha-2
+  // codes (e.g. "IT"): the name shown in the filter is derived from the
+  // code, so the URL doesn't depend on the site's language.
   countries = null;
-  // Filtro per periodo: anno, mese (1-12) e giorno, gerarchici (il mese ha
-  // senso solo con un anno selezionato, il giorno solo con anno+mese). Alla
-  // primissima apertura della pagina la rotta li valorizza con la data
-  // odierna (vedi routes/map.js), per evitare di mostrare tutti i topic
-  // geolocalizzati in una volta sola.
+  // Period filter: year, month (1-12) and day, hierarchical (month only
+  // makes sense with a year selected, day only with year+month). On the
+  // very first page load the route applies the default from the
+  // discourse_maps_default_date_filter site setting (see routes/map.js),
+  // to avoid showing all geolocated topics at once: either today's exact
+  // date (year/month/day) or, with no upper bound, "upcoming".
   year = null;
   month = null;
   day = null;
+  // Mutually exclusive with year/month/day: true shows every topic whose
+  // period hasn't ended yet (today onward), with no specific date chosen.
+  // Picking an explicit year (including "any year") always clears it,
+  // same as how it clears month/day (see updateYear below).
+  upcoming = null;
 
-  // Array dei tag selezionati (comodo per il tag chooser).
+  // Array of selected tags (convenient for the tag chooser).
   //
-  // @computed con dipendenza esplicita su "tags": un getter nativo (senza
-  // @computed) su un Controller classico NON viene ri-eseguito quando
-  // this.tags cambia via this.set(), perché legge la proprietà con un
-  // semplice this.tags invece di un accesso tracciato da Ember. Il risultato
-  // resterebbe quindi bloccato al valore calcolato al primo render, anche se
-  // l'URL e il modello si aggiornano correttamente.
+  // @computed with an explicit dependency on "tags": a native getter
+  // (without @computed) on a classic Controller does NOT re-run when
+  // this.tags changes via this.set(), because it reads the property with
+  // a plain this.tags instead of an Ember-tracked access. The result
+  // would therefore stay stuck at the value computed on the first
+  // render, even though the URL and the model update correctly.
   @computed("tags")
   get selectedTags() {
     return this.tags ? this.tags.split(",") : [];
   }
 
-  // Paese attualmente selezionato (filtro singolo, come la categoria). Stessa
-  // ragione di sopra per il @computed("countries") esplicito.
+  // Currently selected country (single filter, like the category). Same
+  // reason as above for the explicit @computed("countries").
   @computed("countries")
-  get countryName() {
+  get countryCode() {
     return this.countries ? this.countries.split(",")[0] : null;
   }
 
-  // Aggiorna il filtro categoria.
+  // Updates the category filter.
   @action
   updateCategory(categoryId) {
     this.set("category_id", categoryId || null);
   }
 
-  // Aggiorna il filtro tag (riceve un array, lo salviamo come CSV).
+  // Updates the tag filter (receives an array, we store it as CSV).
   @action
   updateTags(tags) {
     this.set("tags", tags?.length ? tags.join(",") : null);
   }
 
-  // Aggiorna il filtro paese.
+  // Updates the country filter.
   @action
-  updateCountry(countryName) {
-    this.set("countries", countryName || null);
+  updateCountry(countryCode) {
+    this.set("countries", countryCode || null);
   }
 
-  // Aggiorna il filtro anno. Cambiare l'anno rende potenzialmente non validi
-  // mese e giorno già selezionati (potrebbero non esistere come opzioni per
-  // il nuovo anno): li azzeriamo sempre, l'utente li riseleziona se servono.
+  // Updates the year filter. Changing the year potentially invalidates
+  // the already-selected month and day (they might not exist as options
+  // for the new year): we always clear them, the user reselects them if
+  // needed. Also clears "upcoming" (including when year is cleared to
+  // null, i.e. the picker's "Any year"): interacting with the year
+  // picker at all means the user is now manually managing the period,
+  // so the page's default floor no longer applies.
   @action
   updateYear(year) {
     this.set("year", year || null);
     this.set("month", null);
     this.set("day", null);
+    this.set("upcoming", null);
   }
 
-  // Aggiorna il filtro mese. Stesso ragionamento di updateYear per il giorno.
+  // Updates the month filter. Same reasoning as updateYear for the day.
   @action
   updateMonth(month) {
     this.set("month", month || null);
     this.set("day", null);
   }
 
-  // Aggiorna il filtro giorno.
+  // Updates the day filter.
   @action
   updateDay(day) {
     this.set("day", day || null);
   }
 
-  // Riporta il filtro periodo alla data odierna (usato dal pulsante "Rimuovi
-  // filtri"): a differenza di updateYear, imposta anno/mese/giorno tutti
-  // insieme invece di azzerare mese/giorno, perché qui vogliamo tornare al
-  // giorno corrente, non semplicemente rimuovere il filtro.
+  // Clears the period filter (used by the "Remove filters" button): no
+  // year/month/day/upcoming selected, so all geolocated topics with no
+  // date filter, consistent with category/tag/country being cleared the
+  // same way by the same button.
   @action
   resetDateFilter() {
-    const today = new Date();
-    this.set("year", today.getFullYear());
-    this.set("month", today.getMonth() + 1);
-    this.set("day", today.getDate());
+    this.set("year", null);
+    this.set("month", null);
+    this.set("day", null);
+    this.set("upcoming", null);
   }
 }
-

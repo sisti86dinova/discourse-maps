@@ -5,6 +5,8 @@ en:
       page_title: "Map"
       list:
         empty: "No geolocated topics yet."
+        empty_today: "No geolocated topics available for today's date."
+        empty_upcoming: "No geolocated topics scheduled from today onwards."
       popup:
         category: "Category:"
         tags: "Tags:"
@@ -15,6 +17,11 @@ en:
         all_years: "Year"
         all_months: "Month"
         all_days: "Day"
+        date_placeholder: "Any date"
+        date_today: "Today"
+        date_upcoming: "From today onwards"
+        date_any_year: "All years"
+        date_close: "Close"
         reset: "Clear filters"
         new_topic: "New topic"
         toggle: "Filters"
@@ -22,6 +29,9 @@ en:
         button_title: "Add a location to the map"
       modal:
         title: "Topic location"
+        preview: "Preview address"
+        preview_label: "Preview"
+        edit_address: "Edit address"
         save: "Save location"
         remove: "Remove location"
         cancel: "Cancel"
