@@ -85,13 +85,30 @@ after_initialize do
       Tag.find_by(id: SiteSetting.discourse_maps_map_tag_id)
     end
 
+    # Whether the given user is allowed to use the "New topic" button on
+    # the /map page (setting `discourse_maps_new_topic_groups`: empty =
+    # admins only). This is the server-side counterpart of the check done
+    # in map-page.gjs to show/hide the button: without it, any user could
+    # get the staff-only "map" tag applied by sending
+    # "discourse_maps_from_map" directly, bypassing the admin's intended
+    # restriction on who may publish to the public map.
+    def self.user_allowed_from_map?(user)
+      return false unless user
+      return true if user.admin?
+
+      group_ids = SiteSetting.discourse_maps_new_topic_groups_map
+      group_ids.present? &&
+        GroupUser.where(user_id: user.id, group_id: group_ids).exists?
+    end
+
     # Applies the geographic data and the "map" tag to the topic, based on
     # the "discourse_maps_location" / "discourse_maps_from_map"
     # parameters. Used both on direct post creation (on :post_created) and
     # on approval of a post that was in the moderation queue (on
     # :approved_post), because in that second case the post is recreated
     # by ReviewableQueuedPost and :post_created is not emitted.
-    def self.apply_map_metadata(topic, location, from_map)
+    def self.apply_map_metadata(topic, location, from_map, user)
+      from_map = false unless user_allowed_from_map?(user)
       return if location.blank? && from_map.blank?
 
       if location.present?
@@ -126,7 +143,7 @@ after_initialize do
       if location.blank?
         remove_map_metadata(topic)
       elsif valid_location_dates?(location)
-        apply_map_metadata(topic, location, nil)
+        apply_map_metadata(topic, location, nil, post.user)
       end
     end
 
@@ -169,7 +186,9 @@ after_initialize do
       Tag
         .where(name: tag_names)
         .pluck(:id)
-        .each { |tid| scope = scope.where(id: TopicTag.where(tag_id: tid).select(:topic_id)) }
+        .each do |tid|
+          scope = scope.where(id: TopicTag.where(tag_id: tid).select(:topic_id))
+        end
       scope
     end
 
@@ -183,7 +202,10 @@ after_initialize do
 
     def self.topic_ids_matching_countries(scope, country_keys)
       TopicCustomField
-        .where(topic_id: scope.distinct.pluck("topics.id"), name: LOCATION_FIELD)
+        .where(
+          topic_id: scope.distinct.pluck("topics.id"),
+          name: LOCATION_FIELD
+        )
         .pluck(:topic_id, :value)
         .select { |_, value| country_keys.include?(parse_country_key(value)) }
         .map(&:first)
@@ -197,7 +219,10 @@ after_initialize do
     # locales.
     def self.countries_for_scope(scope)
       TopicCustomField
-        .where(topic_id: scope.distinct.pluck("topics.id"), name: LOCATION_FIELD)
+        .where(
+          topic_id: scope.distinct.pluck("topics.id"),
+          name: LOCATION_FIELD
+        )
         .pluck(:value)
         .filter_map { |value| country_entry(value) }
         .uniq { |entry| entry[:id] }
@@ -308,7 +333,10 @@ after_initialize do
     # options.
     def self.date_ranges_for_scope(scope)
       TopicCustomField
-        .where(topic_id: scope.distinct.pluck("topics.id"), name: LOCATION_FIELD)
+        .where(
+          topic_id: scope.distinct.pluck("topics.id"),
+          name: LOCATION_FIELD
+        )
         .pluck(:value)
         .map { |value| parse_date_range(value) }
         .compact
@@ -317,12 +345,17 @@ after_initialize do
     # Filters a scope by period: the topic must have a period that
     # overlaps the given [filter_start, filter_end] interval.
     def self.filter_by_date_range(scope, filter_start, filter_end)
-      scope.where(id: topic_ids_matching_date_range(scope, filter_start, filter_end))
+      scope.where(
+        id: topic_ids_matching_date_range(scope, filter_start, filter_end)
+      )
     end
 
     def self.topic_ids_matching_date_range(scope, filter_start, filter_end)
       TopicCustomField
-        .where(topic_id: scope.distinct.pluck("topics.id"), name: LOCATION_FIELD)
+        .where(
+          topic_id: scope.distinct.pluck("topics.id"),
+          name: LOCATION_FIELD
+        )
         .pluck(:topic_id, :value)
         .select do |_, value|
           range = parse_date_range(value)
@@ -337,7 +370,9 @@ after_initialize do
     def self.years_for_scope(scope)
       years =
         date_ranges_for_scope(scope)
-          .flat_map { |start_date, end_date| (start_date.year..end_date.year).to_a }
+          .flat_map do |start_date, end_date|
+            (start_date.year..end_date.year).to_a
+          end
           .uniq
           .sort
 
@@ -467,7 +502,7 @@ after_initialize do
           posts_count: topic.posts_count,
           last_posted_at: topic.last_posted_at,
           created_at: topic.created_at,
-          visited: visited_topic_ids.include?(topic.id),
+          visited: visited_topic_ids.include?(topic.id)
         }
       end
     end
@@ -492,7 +527,16 @@ after_initialize do
     )
       base = base_map_scope(guardian)
       unless base
-        return({ category_ids: [], tags: [], countries: [], years: [], months: [], days: [] })
+        return(
+          {
+            category_ids: [],
+            tags: [],
+            countries: [],
+            years: [],
+            months: [],
+            days: []
+          }
+        )
       end
 
       scope = base[:scope]
@@ -501,17 +545,28 @@ after_initialize do
 
       # Available categories: respect the tag, country and period filters already set.
       scope_for_categories = scope
-      scope_for_categories = filter_by_tags(scope_for_categories, tag_names) if tag_names.present?
       scope_for_categories =
-        filter_by_countries(scope_for_categories, country_keys) if country_keys.present?
-      scope_for_categories = filter_by_date_range(scope_for_categories, *date_range) if date_range
+        filter_by_tags(scope_for_categories, tag_names) if tag_names.present?
+      scope_for_categories =
+        filter_by_countries(
+          scope_for_categories,
+          country_keys
+        ) if country_keys.present?
+      scope_for_categories =
+        filter_by_date_range(scope_for_categories, *date_range) if date_range
       category_ids = scope_for_categories.distinct.pluck(:category_id).compact
 
       # Available tags: respect the category, country and period filters already set.
       scope_for_tags = scope
-      scope_for_tags = scope_for_tags.where(category_id: category_id) if category_id.present?
-      scope_for_tags = filter_by_countries(scope_for_tags, country_keys) if country_keys.present?
-      scope_for_tags = filter_by_date_range(scope_for_tags, *date_range) if date_range
+      scope_for_tags =
+        scope_for_tags.where(category_id: category_id) if category_id.present?
+      scope_for_tags =
+        filter_by_countries(
+          scope_for_tags,
+          country_keys
+        ) if country_keys.present?
+      scope_for_tags =
+        filter_by_date_range(scope_for_tags, *date_range) if date_range
 
       tag_ids =
         TopicTag
@@ -530,18 +585,28 @@ after_initialize do
       # Available countries: respect the category, tag and period filters already set.
       scope_for_countries = scope
       scope_for_countries =
-        scope_for_countries.where(category_id: category_id) if category_id.present?
-      scope_for_countries = filter_by_tags(scope_for_countries, tag_names) if tag_names.present?
-      scope_for_countries = filter_by_date_range(scope_for_countries, *date_range) if date_range
+        scope_for_countries.where(
+          category_id: category_id
+        ) if category_id.present?
+      scope_for_countries =
+        filter_by_tags(scope_for_countries, tag_names) if tag_names.present?
+      scope_for_countries =
+        filter_by_date_range(scope_for_countries, *date_range) if date_range
       countries = countries_for_scope(scope_for_countries)
 
       # Available years/months/days: respect the category/tag/country
       # filters already set (not the period itself, which is hierarchical
       # among the three).
       scope_for_dates = scope
-      scope_for_dates = scope_for_dates.where(category_id: category_id) if category_id.present?
-      scope_for_dates = filter_by_tags(scope_for_dates, tag_names) if tag_names.present?
-      scope_for_dates = filter_by_countries(scope_for_dates, country_keys) if country_keys.present?
+      scope_for_dates =
+        scope_for_dates.where(category_id: category_id) if category_id.present?
+      scope_for_dates =
+        filter_by_tags(scope_for_dates, tag_names) if tag_names.present?
+      scope_for_dates =
+        filter_by_countries(
+          scope_for_dates,
+          country_keys
+        ) if country_keys.present?
 
       years = years_for_scope(scope_for_dates)
       months = year.present? ? months_for_scope(scope_for_dates, year.to_i) : []
@@ -560,7 +625,7 @@ after_initialize do
         countries: countries,
         years: years,
         months: months,
-        days: days,
+        days: days
       }
     end
   end
@@ -581,11 +646,17 @@ after_initialize do
   #  the first post, just like the location itself.
   # --------------------------------------------------------------------------
   NewPostManager.add_handler do |manager|
-    location = manager.args[:discourse_maps_location] || manager.args["discourse_maps_location"]
+    location =
+      manager.args[:discourse_maps_location] ||
+        manager.args["discourse_maps_location"]
 
     if manager.args[:topic_id].blank? && location.present? &&
          !::DiscourseMaps.valid_location_dates?(location)
-      next(manager.create_error_result(I18n.t("discourse_maps.errors.missing_dates")))
+      next(
+        manager.create_error_result(
+          I18n.t("discourse_maps.errors.missing_dates")
+        )
+      )
     end
 
     nil
@@ -596,7 +667,7 @@ after_initialize do
   #   1. we save the geographic data (if present) in the topic's custom field;
   #   2. we automatically assign the "map" tag configured in admin.
   # --------------------------------------------------------------------------
-  on(:post_created) do |post, opts, _user|
+  on(:post_created) do |post, opts, user|
     # We only care about the first post (the actual topic).
     next unless post.is_first_post?
 
@@ -610,8 +681,11 @@ after_initialize do
     # page: the tag group is staff-only, so a normal user can't assign it
     # themselves through the composer (the selector hides it and the
     # server would filter it out anyway), and without this bypass it
-    # would never show up in the /map list.
-    ::DiscourseMaps.apply_map_metadata(post.topic, location, from_map)
+    # would never show up in the /map list. apply_map_metadata re-checks
+    # `user` against discourse_maps_new_topic_groups: without it, any
+    # user could send discourse_maps_from_map directly and bypass the
+    # setting, which only gates the button client-side.
+    ::DiscourseMaps.apply_map_metadata(post.topic, location, from_map, user)
   end
 
   # --------------------------------------------------------------------------
@@ -632,7 +706,12 @@ after_initialize do
     location = payload["discourse_maps_location"]
     from_map = payload["discourse_maps_from_map"]
 
-    ::DiscourseMaps.apply_map_metadata(post.topic, location, from_map)
+    ::DiscourseMaps.apply_map_metadata(
+      post.topic,
+      location,
+      from_map,
+      post.user
+    )
   end
 
   # --------------------------------------------------------------------------
@@ -642,7 +721,9 @@ after_initialize do
   add_to_serializer(
     :topic_view,
     :discourse_maps_location,
-    include_condition: -> { object.topic.custom_fields[::DiscourseMaps::LOCATION_FIELD].present? },
+    include_condition: -> do
+      object.topic.custom_fields[::DiscourseMaps::LOCATION_FIELD].present?
+    end
   ) { object.topic.custom_fields[::DiscourseMaps::LOCATION_FIELD] }
 
   # --------------------------------------------------------------------------
@@ -677,7 +758,7 @@ after_initialize do
               year: params[:year],
               month: params[:month],
               day: params[:day],
-              upcoming: upcoming,
+              upcoming: upcoming
             )
           filters =
             ::DiscourseMaps.map_filter_options(
@@ -688,7 +769,7 @@ after_initialize do
               year: params[:year],
               month: params[:month],
               day: params[:day],
-              upcoming: upcoming,
+              upcoming: upcoming
             )
 
           render json: { topics: topics, filters: filters }
@@ -698,5 +779,7 @@ after_initialize do
   end
 
   # Registers the /map route (serves both the HTML and /map.json).
-  Discourse::Application.routes.append { get "/map" => "discourse_maps/map#index" }
+  Discourse::Application.routes.append do
+    get "/map" => "discourse_maps/map#index"
+  end
 end

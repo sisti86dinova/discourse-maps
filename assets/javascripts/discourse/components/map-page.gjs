@@ -48,6 +48,7 @@ import willDestroy from "@ember/render-modifiers/modifiers/will-destroy";
 import { service } from "@ember/service";
 import { trustHTML } from "@ember/template";
 import ComboBox from "discourse/select-kit/components/combo-box";
+import { escapeExpression } from "discourse/lib/utilities";
 import DButton from "discourse/ui-kit/d-button";
 import dIcon from "discourse/ui-kit/helpers/d-icon";
 import { i18n } from "discourse-i18n";
@@ -442,7 +443,7 @@ export default class MapPage extends Component {
       // by <br>, one line each.
       const title =
         `<strong class="discourse-maps-popup__title">` +
-        `<a href="${topic.url}">${topic.fancy_title || topic.title}</a>` +
+        `<a href="${escapeExpression(topic.url)}">${topic.fancy_title || escapeExpression(topic.title)}</a>` +
         `</strong>`;
 
       const lines = [];
@@ -454,13 +455,16 @@ export default class MapPage extends Component {
       if (category) {
         lines.push(
           `${i18n("discourse_maps.popup.category")} ` +
-            `<a href="${category.url}">${category.name}</a>`
+            `<a href="${escapeExpression(category.url)}">${escapeExpression(category.name)}</a>`
         );
       }
 
       if (topic.tags?.length) {
         const tagLinks = topic.tags
-          .map((tag) => `<a href="/tag/${tag}">${tag}</a>`)
+          .map(
+            (tag) =>
+              `<a href="/tag/${escapeExpression(tag)}">${escapeExpression(tag)}</a>`
+          )
           .join(", ");
         lines.push(`${i18n("discourse_maps.popup.tags")} ${tagLinks}`);
       }
