@@ -109,6 +109,7 @@ after_initialize do
     # by ReviewableQueuedPost and :post_created is not emitted.
     def self.apply_map_metadata(topic, location, from_map, user)
       from_map = false unless user_allowed_from_map?(user)
+      location = sanitize_location(location)
       return if location.blank? && from_map.blank?
 
       if location.present?
@@ -125,24 +126,23 @@ after_initialize do
 
     # Applies a location change made while editing the topic's first post
     # (see add_permitted_post_update_param above): a present location
-    # overwrites the custom field, after validating its period like on
-    # creation; a blank one removes it entirely, together with the "map"
-    # tag (the only way to drop it, since the tag group is staff-only and
-    # the tag selector hides it from the composer). Silently ignored for a
-    # reply (only the first post carries a location) or for a malformed
-    # location (missing/invalid dates) coming from a non-compliant client:
-    # the modal's own required fields prevent this through normal use,
-    # same reasoning as the creation-time check in NewPostManager.add_handler
-    # below.
+    # overwrites the custom field, after sanitizing it like on creation
+    # (see apply_map_metadata/sanitize_location); a blank one removes it
+    # entirely, together with the "map" tag (the only way to drop it,
+    # since the tag group is staff-only and the tag selector hides it
+    # from the composer). Silently ignored for a reply (only the first
+    # post carries a location) or for a malformed location (missing/
+    # invalid fields) coming from a non-compliant client: the modal's own
+    # required fields prevent this through normal use, same reasoning as
+    # the creation-time check in NewPostManager.add_handler below.
     def self.update_map_metadata(post, location)
       return unless post.is_first_post?
 
-      location = location.to_unsafe_h if location.respond_to?(:to_unsafe_h)
       topic = post.topic
 
       if location.blank?
         remove_map_metadata(topic)
-      elsif valid_location_dates?(location)
+      else
         apply_map_metadata(topic, location, nil, post.user)
       end
     end
@@ -280,21 +280,64 @@ after_initialize do
       nil
     end
 
-    # Validates the period (start/end) of a location as it arrives from
-    # the composer (hash with symbol or string keys, not yet serialized
-    # to JSON): both dates must be present and the end must not precede
-    # the start. Used for the server-side check on post creation (see
-    # NewPostManager.add_handler below), to guarantee the invariant even
-    # if the client didn't validate correctly (bug, direct API call,
-    # etc.).
-    def self.valid_location_dates?(location)
-      start_date = location[:start_date] || location["start_date"]
-      end_date = location[:end_date] || location["end_date"]
-      return false if start_date.blank? || end_date.blank?
+    # Max length kept for the free-text fields of a location: generous
+    # enough for any real address/display name, but short enough to keep
+    # a malicious or buggy client from stuffing the custom field (and the
+    # page that renders it) with an unbounded string.
+    MAX_TEXT_LENGTH = 500
 
-      Date.parse(start_date.to_s) <= Date.parse(end_date.to_s)
+    # ISO 3166-1 alpha-2: exactly two letters.
+    COUNTRY_CODE_REGEXP = /\A[a-zA-Z]{2}\z/
+
+    # Validates and normalizes a location as it arrives from the composer
+    # (hash with symbol or string keys, possibly an ActionController::Parameters,
+    # not yet serialized to JSON) into the plain Hash we actually persist.
+    # Returns nil if it isn't acceptable: lat/lng missing or out of range,
+    # or start/end date missing, unparseable or in the wrong order.
+    #
+    # This is the only place allowed to decide what ends up in the
+    # LOCATION_FIELD custom field: it whitelists the known keys (instead
+    # of storing whatever hash the client sent) and coerces every value
+    # to the expected type, so a non-compliant client (bug, direct API
+    # call) can at most store a well-formed location, never arbitrary
+    # keys/types riding along with it.
+    def self.sanitize_location(raw_location)
+      return nil if raw_location.blank?
+
+      location =
+        (
+          if raw_location.respond_to?(:to_unsafe_h)
+            raw_location.to_unsafe_h
+          else
+            raw_location
+          end
+        ).stringify_keys
+
+      lat = Float(location["lat"], exception: false)
+      lng = Float(location["lng"], exception: false)
+      return nil if lat.nil? || lng.nil?
+      return nil unless lat.between?(-90, 90) && lng.between?(-180, 180)
+
+      start_date = Date.parse(location["start_date"].to_s)
+      end_date = Date.parse(location["end_date"].to_s)
+      return nil if end_date < start_date
+
+      country_code = location["country_code"].to_s.strip.upcase
+      country_code = nil unless country_code.match?(COUNTRY_CODE_REGEXP)
+
+      {
+        "address" => location["address"].to_s.strip.truncate(MAX_TEXT_LENGTH),
+        "lat" => lat,
+        "lng" => lng,
+        "display_name" =>
+          location["display_name"].to_s.strip.truncate(MAX_TEXT_LENGTH),
+        "country_code" => country_code,
+        "country" => location["country"].to_s.strip.truncate(MAX_TEXT_LENGTH),
+        "start_date" => start_date.to_s,
+        "end_date" => end_date.to_s
+      }
     rescue ArgumentError, TypeError
-      false
+      nil
     end
 
     # Converts the (possibly partial) year/month/day filter parameters
@@ -635,15 +678,16 @@ after_initialize do
   Topic.register_custom_field_type(::DiscourseMaps::LOCATION_FIELD, :json)
 
   # --------------------------------------------------------------------------
-  #  Server-side check, on post creation: a geolocated topic must have
-  #  both a start date and an end date (see
-  #  DiscourseMaps.valid_location_dates?). The composer modal already
-  #  validates this constraint client-side, but without a check here a
+  #  Server-side check, on post creation: a geolocated topic must have a
+  #  valid location (lat/lng in range, start/end date present and
+  #  ordered; see DiscourseMaps.sanitize_location). The composer modal
+  #  already validates this client-side, but without a check here a
   #  different client (bug, direct API call) could still create a topic
-  #  with a location but no period, which would never show up in the
-  #  /map date filters. This only applies to the creation of a new topic
-  #  (manager.args[:topic_id] absent): the location/period concern only
-  #  the first post, just like the location itself.
+  #  with a malformed location, which would silently never show up on
+  #  the map or in its filters (see apply_map_metadata). This only
+  #  applies to the creation of a new topic (manager.args[:topic_id]
+  #  absent): the location/period concern only the first post, just like
+  #  the location itself.
   # --------------------------------------------------------------------------
   NewPostManager.add_handler do |manager|
     location =
@@ -651,10 +695,10 @@ after_initialize do
         manager.args["discourse_maps_location"]
 
     if manager.args[:topic_id].blank? && location.present? &&
-         !::DiscourseMaps.valid_location_dates?(location)
+         !::DiscourseMaps.sanitize_location(location)
       next(
         manager.create_error_result(
-          I18n.t("discourse_maps.errors.missing_dates")
+          I18n.t("discourse_maps.errors.invalid_location")
         )
       )
     end
