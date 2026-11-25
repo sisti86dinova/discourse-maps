@@ -24,6 +24,31 @@ plugins:
     default: ""
     allow_any: false
 
+  # Topic lists that leave out geolocated topics (the ones carrying the
+  # "map" tag), so they mostly live on /map. Values are TopicQuery list
+  # types: "latest" also covers the homepage and the RSS feed. Applied in
+  # the topic_query_create_list_topics modifier registered in plugin.rb.
+  discourse_maps_hide_from_lists:
+    type: list
+    list_type: compact
+    default: ""
+    allow_any: false
+    choices:
+      - "latest"
+      - "new"
+      - "unread"
+      - "top"
+      - "hot"
+      - "suggested"
+
+  # Whether the lists above are also filtered when scoped to a category
+  # (/c/...) or to a tag (/tag/...). Off by default: those pages keep
+  # showing geolocated topics.
+  discourse_maps_hide_on_category_pages:
+    default: false
+  discourse_maps_hide_on_tag_pages:
+    default: false
+
   # Background color of the "cluster" pin (the numbered circle that indicates
   # multiple overlapping topics at the same point on the map).
   discourse_maps_cluster_color:

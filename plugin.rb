@@ -101,6 +101,47 @@ after_initialize do
         GroupUser.where(user_id: user.id, group_id: group_ids).exists?
     end
 
+    # Whether the topic list of the given type (TopicQuery filter name),
+    # built with the given TopicQuery options, must leave out the topics
+    # with the "map" tag (see the topic_query_create_list_topics modifier
+    # below).
+    def self.hide_from_list?(list_type, query_options)
+      return false if list_type.blank?
+      if SiteSetting.discourse_maps_hide_from_lists_map.exclude?(list_type.to_s)
+        return false
+      end
+
+      if query_options[:category].present?
+        return SiteSetting.discourse_maps_hide_on_category_pages
+      end
+      if query_options[:tags].present?
+        return SiteSetting.discourse_maps_hide_on_tag_pages
+      end
+
+      true
+    end
+
+    # Drops the topics with the "map" tag from a topic list. Most lists
+    # are still a relation at this point (filtering it in SQL keeps the
+    # page full), but suggested topics arrive as an already loaded Array.
+    def self.without_map_topics(topics)
+      map_topic_ids =
+        TopicTag.where(tag_id: SiteSetting.discourse_maps_map_tag_id).select(
+          :topic_id
+        )
+
+      if topics.is_a?(ActiveRecord::Relation)
+        topics.where.not(id: map_topic_ids)
+      else
+        hidden_ids =
+          map_topic_ids
+            .where(topic_id: topics.map(&:id))
+            .pluck(:topic_id)
+            .to_set
+        topics.reject { |topic| hidden_ids.include?(topic.id) }
+      end
+    end
+
     # Applies the geographic data and the "map" tag to the topic, based on
     # the "discourse_maps_location" / "discourse_maps_from_map"
     # parameters. Used both on direct post creation (on :post_created) and
@@ -756,6 +797,25 @@ after_initialize do
       from_map,
       post.user
     )
+  end
+
+  # --------------------------------------------------------------------------
+  #  Keeps geolocated topics (the ones with the "map" tag) out of the topic
+  #  lists picked in discourse_maps_hide_from_lists. The list type is the
+  #  TopicQuery filter name (:latest also covers the homepage, its
+  #  "categories + latest" layout and the RSS feed). Category and tag pages
+  #  are the same lists scoped by options[:category] / options[:tags], and
+  #  are only filtered when their own setting says so. /map is unaffected:
+  #  it has its own query (see base_map_scope).
+  # --------------------------------------------------------------------------
+  register_modifier(
+    :topic_query_create_list_topics
+  ) do |topics, options, topic_query|
+    if ::DiscourseMaps.hide_from_list?(options[:filter], topic_query.options)
+      ::DiscourseMaps.without_map_topics(topics)
+    else
+      topics
+    end
   end
 
   # --------------------------------------------------------------------------
