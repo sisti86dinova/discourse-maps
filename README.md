@@ -64,6 +64,27 @@ map with all geolocated topics on a dedicated `/map` page.
 - The category filter's dropdown rows show the category's own icon (when the
   category uses the "icon" badge style) tinted with the category's color.
 
+### Hiding map topics from other lists
+
+Topics with the "map" tag can be kept out of Discourse's regular topic lists,
+so they mostly live on `/map`. It's configured with three settings (all off by
+default, see Settings):
+
+- `discourse_maps_hide_from_lists` picks the lists to filter: `latest` (which
+  also covers the homepage, the "categories + latest" layout and the RSS
+  feed), `new`, `unread`, `top`, `hot`, `suggested` (the suggested topics at
+  the bottom of a topic).
+- By default category pages (`/c/...`) and tag pages (`/tag/...`) keep
+  showing map topics. `discourse_maps_hide_on_category_pages` and
+  `discourse_maps_hide_on_tag_pages` apply the filter there too.
+- `/map` always shows them.
+
+For example, to show map topics only on `/map` and on category pages, select
+just `latest` and leave the other two settings off.
+
+Not affected: search results, the featured topics of the categories-only
+homepage layout, and personal lists (user activity, bookmarks, messages).
+
 ## Settings
 
 Configurable from **Admin > Settings > Plugins**:
@@ -73,6 +94,10 @@ Configurable from **Admin > Settings > Plugins**:
 | `discourse_maps_enabled` | Enables/disables the plugin. |
 | `discourse_maps_map_tag_id` | ID of the tag automatically assigned to topics that use the map feature (default: `295`). |
 | `discourse_maps_new_topic_groups` | Groups (besides admins, who always see it) allowed to see the "New topic" button on `/map`. Empty = admins only. |
+| `discourse_maps_hide_from_lists` | Topic lists that hide topics with the map tag: `latest` (also the homepage), `new`, `unread`, `top`, `hot`, `suggested`. Empty = none (default). |
+| `discourse_maps_hide_on_category_pages` | Also hide them from the lists above on category pages (default: off). |
+| `discourse_maps_hide_on_tag_pages` | Also hide them from the lists above on tag pages (default: off). |
+| `discourse_maps_default_date_filter` | Period shown on `/map` before any filter is picked: `today` (only today's events) or `upcoming` (today's and future ones). |
 | `discourse_maps_cluster_color` | Background color of the "cluster" pin (the numbered circle shown when multiple topics share the same map location). |
 | `discourse_maps_provider` | Map/geocoding provider: `locationiq` or `google`. |
 | `discourse_maps_locationiq_api_key` | LocationIQ API key. |
