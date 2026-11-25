@@ -1,5 +1,5 @@
 // ============================================================================
-//  Discourse Maps - /map page controller.
+//  Discourse Maps - /mappa page controller.
 //
 //  Manages the filter state (category, tags and country) as query params,
 //  so they're shareable via URL and persist across page refresh.

@@ -1,14 +1,15 @@
 // ============================================================================
-//  Discourse Maps - /map client route.
+//  Discourse Maps - /mappa client route.
 //
-//  Loads from the server (/map.json endpoint) the list of topics with the
+//  Loads from the server (/mappa.json endpoint) the list of topics with the
 //  map tag and their location, to be shown on the map and in the list.
 // ============================================================================
 
 import { service } from "@ember/service";
-import DiscourseRoute from "discourse/routes/discourse";
 import { ajax } from "discourse/lib/ajax";
+import DiscourseRoute from "discourse/routes/discourse";
 import { i18n } from "discourse-i18n";
+import { MAP_PATH } from "../lib/discourse-maps-paths.js";
 
 export default class MapRoute extends DiscourseRoute {
   @service router;
@@ -92,11 +93,11 @@ export default class MapRoute extends DiscourseRoute {
       data.upcoming = true;
     }
 
-    return ajax("/map.json", { data });
+    return ajax(`${MAP_PATH}.json`, { data });
   }
 
   // Filters are tied to the query string, so by nature they're "sticky":
-  // without this hook, leaving /map and coming back with a plain link (no
+  // without this hook, leaving /mappa and coming back with a plain link (no
   // parameters, e.g. from the sidebar) the controller would still keep
   // the previous visit's values. Ember calls resetController when leaving
   // the route (isExiting): here we clear the filters so the page always

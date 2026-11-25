@@ -110,7 +110,7 @@ export default class DiscourseMapsLocationModal extends Component {
     this.errorKey = null;
 
     // The dates are as required as the address: without them, the topic
-    // could never show up in the /map page's date filters. Checked here
+    // could never show up in the /mappa page's date filters. Checked here
     // rather than only in confirm(), so the user isn't led to verify the
     // address just to be stopped by a missing date right after.
     if (!this.startDate || !this.endDate) {
@@ -153,7 +153,7 @@ export default class DiscourseMapsLocationModal extends Component {
     // We save the typed address + the geocoding result (coordinates,
     // formatted address, country) + the reference period on the
     // composer's model. country_code is what identifies the country in
-    // the /map filter; country is only the name at save time, kept as a
+    // the /mappa filter; country is only the name at save time, kept as a
     // fallback for codes the browser can't resolve.
     this.composer.model.set("discourse_maps_location", {
       address: this.address,

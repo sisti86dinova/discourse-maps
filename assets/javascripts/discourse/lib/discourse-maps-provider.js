@@ -6,7 +6,7 @@
 //    - "locationiq" : OpenStreetMap tiles via Leaflet + REST geocoding
 //    - "google"     : Google Maps JavaScript API + Geocoder JS
 //
-//  The goal is for the rest of the plugin (composer, /map page) to always
+//  The goal is for the rest of the plugin (composer, /mappa page) to always
 //  use the same public functions, without knowing which provider is active:
 //    - geocodeAddress(address, siteSettings) -> { lat, lng, display_name }
 //    - createMap(element, options)          -> { instance, destroy() }
@@ -30,7 +30,7 @@ const DEFAULT_ZOOM = 5;
 // consistency with the single-marker interactive map.
 export const SINGLE_MARKER_ZOOM = 15;
 
-// Lower limit for the /map page's interactive map: prevents zooming out
+// Lower limit for the /mappa page's interactive map: prevents zooming out
 // to the point where the world tiles become smaller than the container,
 // leaving blank bars around them.
 const MIN_ZOOM = 1.5;
@@ -141,7 +141,13 @@ function loadCss(url) {
 // ---------------------------------------------------------------------------
 //  Lazy loading of the provider libraries.
 // ---------------------------------------------------------------------------
+// Another plugin (e.g. Locations) may already have Leaflet on the page,
+// together with its own extensions (markercluster): loading our copy on top
+// would replace window.L and break that plugin's maps.
 async function ensureLeaflet() {
+  if (window.L?.map) {
+    return window.L;
+  }
   loadCss(LEAFLET_CSS);
   await loadScript(LEAFLET_JS);
   return window.L;
@@ -164,14 +170,14 @@ async function ensureGoogle(apiKey, language) {
 //  The user enters the full address in a single free-text field: it's the
 //  provider (LocationIQ/Nominatim or Google) that interprets it and
 //  returns, besides the coordinates, the structured components from which
-//  we extract the country (used by the /map page's country filter).
+//  we extract the country (used by the /mappa page's country filter).
 //
 //  The country is identified by its ISO 3166-1 alpha-2 code
 //  (country_code), never by the provider's name string: the language of
 //  that string depends on the typed address and on the request's
 //  preferences (e.g. "Italy" if the user writes "... bologna italy"), so
 //  using it as the identity would split the same country across several
-//  entries of the /map filter ("Italia" / "Italy"). The name is derived
+//  entries of the /mappa filter ("Italia" / "Italy"). The name is derived
 //  from the code at display time (see localizedCountryName), so it stays
 //  in a single language even for topics saved under a different locale;
 //  the name returned here is only kept as a fallback for codes the

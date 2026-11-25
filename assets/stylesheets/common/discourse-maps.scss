@@ -3,12 +3,12 @@
 //
 //  Base stylesheet. Already contains a few example media queries to
 //  ensure the map container is responsive (a spec requirement). The
-//  specific styles (/map page, popup, filters) will be added in later
+//  specific styles (/mappa page, popup, filters) will be added in later
 //  steps.
 // ============================================================================
 
 // Container for the interactive map (Leaflet/Google Maps JS), used only
-// by the /map page: the topic page uses the static map further below
+// by the /mappa page: the topic page uses the static map further below
 // (.discourse-maps-static), to avoid loading the map SDK for a single
 // pin that doesn't need to be panned or zoomed.
 .discourse-map {
@@ -130,7 +130,7 @@
   }
 }
 
-// /map page: map at the top + topic list below.
+// /mappa page: map at the top + topic list below.
 .discourse-maps-page {
   max-width: 1100px;
   margin: 0 auto;
@@ -219,7 +219,7 @@
     }
   }
 
-  // On the /map page the map is taller than the one on topics.
+  // On the /mappa page the map is taller than the one on topics.
   .discourse-map {
     height: 500px;
 
@@ -244,7 +244,7 @@
   }
 }
 
-// Date filter (year/month/day) on the /map page: a pill that opens a
+// Date filter (year/month/day) on the /mappa page: a pill that opens a
 // panel with progressive selection. Mobile-first styles: the base rules
 // are for the full-width bottom sheet, the desktop ones (>= 768px)
 // shrink the panel to a popover anchored below the button.

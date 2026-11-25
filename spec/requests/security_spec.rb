@@ -119,7 +119,7 @@ RSpec.describe "Discourse Maps security" do
     end
   end
 
-  describe "/map.json" do
+  describe "/mappa.json" do
     fab!(:listed) { Fabricate(:topic, category:, tags: [map_tag]) }
     fab!(:unlisted) do
       Fabricate(:topic, category:, tags: [map_tag], visible: false)
@@ -133,7 +133,7 @@ RSpec.describe "Discourse Maps security" do
     end
 
     def map_topic_ids
-      get "/map.json"
+      get "/mappa.json"
       expect(response.status).to eq(200)
       response.parsed_body["topics"].map { |t| t["id"] }
     end
@@ -154,12 +154,12 @@ RSpec.describe "Discourse Maps security" do
     end
 
     it "doesn't fail on array query params" do
-      get "/map.json", params: { tags: ["a"], countries: { x: "IT" } }
+      get "/mappa.json", params: { tags: ["a"], countries: { x: "IT" } }
       expect(response.status).to eq(200)
     end
 
     it "doesn't fail on an out of range month" do
-      get "/map.json", params: { year: 2026, month: 13 }
+      get "/mappa.json", params: { year: 2026, month: 13 }
       expect(response.status).to eq(200)
     end
 
@@ -168,7 +168,7 @@ RSpec.describe "Discourse Maps security" do
       SiteSetting.discourse_maps_max_topics = 1
       sign_in(admin)
 
-      get "/map.json"
+      get "/mappa.json"
       body = response.parsed_body
       expect(body["topics"].map { |t| t["id"] }).to eq([unlisted.id])
       expect(body["truncated"]).to eq(true)
@@ -176,7 +176,7 @@ RSpec.describe "Discourse Maps security" do
     end
 
     it "doesn't flag the result as truncated below the cap" do
-      get "/map.json"
+      get "/mappa.json"
       expect(response.parsed_body["truncated"]).to eq(false)
     end
 
@@ -188,16 +188,16 @@ RSpec.describe "Discourse Maps security" do
 
       it "limits anonymous requests" do
         2.times do
-          get "/map.json"
+          get "/mappa.json"
           expect(response.status).to eq(200)
         end
-        get "/map.json"
+        get "/mappa.json"
         expect(response.status).to eq(429)
       end
 
       it "doesn't limit the HTML page" do
         3.times do
-          get "/map"
+          get "/mappa"
           expect(response.status).to eq(200)
         end
       end
@@ -205,7 +205,7 @@ RSpec.describe "Discourse Maps security" do
       it "doesn't limit staff" do
         sign_in(admin)
         3.times do
-          get "/map.json"
+          get "/mappa.json"
           expect(response.status).to eq(200)
         end
       end

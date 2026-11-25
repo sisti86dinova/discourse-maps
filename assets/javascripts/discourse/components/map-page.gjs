@@ -1,5 +1,5 @@
 // ============================================================================
-//  Discourse Maps - /map page component.
+//  Discourse Maps - /mappa page component.
 //
 //  Shows:
 //    1. at the top, the filters (category + tags, only those actually
@@ -11,7 +11,7 @@
 //
 //  Arguments:
 //    @topics          - array of topics ({ id, title, fancy_title, url,
-//                       category_id, tags, location, ... }) from the /map
+//                       category_id, tags, location, ... }) from the /mappa
 //                       route, already ordered by the server (most recent first).
 //    @filters          - { category_ids: [...], tags: [{id, name}, ...],
 //                        countries: [{id, name}, ...] }, filter options
@@ -535,7 +535,7 @@ export default class MapPage extends Component {
   @action
   async createTopic() {
     // We tell the server that the topic originates from the "New topic"
-    // button on /map: the "map" tag will be assigned regardless, even if
+    // button on /mappa: the "map" tag will be assigned regardless, even if
     // the user doesn't add a location from the composer (see
     // on(:post_created) in plugin.rb). Passing the tag here via `tags:`
     // wouldn't work for non-staff users: the tag group is staff-only, so

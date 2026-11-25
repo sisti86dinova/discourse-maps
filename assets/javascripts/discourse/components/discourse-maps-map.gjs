@@ -3,7 +3,7 @@
 //
 //  Renders an interactive map in a <div> container. It's deliberately
 //  generic: it accepts one or more markers, so it can be used both on
-//  the topic page (a single pin) and on the /map page (many pins).
+//  the topic page (a single pin) and on the /mappa page (many pins).
 //
 //  Arguments:
 //    @location    - single point { lat, lng, display_name } (optional)
@@ -65,7 +65,7 @@ export default class DiscourseMapsMap extends Component {
   }
 
   // Rebuilds the map when the markers (or the location) change, e.g. when
-  // the filters on the /map page change.
+  // the filters on the /mappa page change.
   @action
   async refresh() {
     this.mapHandle?.destroy?.();

@@ -31,7 +31,7 @@ export default class DiscourseMapsTopicMap extends Component {
     return this.site.categories?.find((c) => c.id === categoryId) || null;
   }
 
-  // Same category-colored pin as the /map page: without this, the
+  // Same category-colored pin as the /mappa page: without this, the
   // marker here always used the fallback color, because @location
   // doesn't carry any information about the topic's category.
   get markerLocation() {

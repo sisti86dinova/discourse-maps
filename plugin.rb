@@ -6,7 +6,7 @@
 #  displaying it on an interactive map (LocationIQ or Google Maps).
 #  NOTE: this file is the plugin's entry point. In this first step it only
 #  contains the basic structure (metadata, enabling, settings).
-#  The features (composer, /map page, filters) will be added in later
+#  The features (composer, /mappa page, filters) will be added in later
 #  steps.
 # ============================================================================
 
@@ -20,14 +20,14 @@
 # Enables/disables the whole plugin via the admin panel setting.
 enabled_site_setting :discourse_maps_enabled
 
-# Registers the common stylesheet (maps, /map page layout, etc.).
+# Registers the common stylesheet (maps, /mappa page layout, etc.).
 register_asset "stylesheets/common/discourse-maps.scss"
 
 # Ensures the "Map" sidebar link icon is always available, regardless of
 # the default icon set configured on the site.
 register_svg_icon "globe"
 
-# Icons for the button that opens/closes filters on mobile (/map page).
+# Icons for the button that opens/closes filters on mobile (/mappa page).
 register_svg_icon "angle-up"
 register_svg_icon "angle-down"
 
@@ -40,7 +40,7 @@ register_svg_icon "angle-down"
 # ----------------------------------------------------------------------------
 after_initialize do
   add_permitted_post_create_param("discourse_maps_location", :hash)
-  # Without this the flag set by the /map page's "New topic" button would be
+  # Without this the flag set by the /mappa page's "New topic" button would be
   # dropped by PostsController before reaching on(:post_created).
   add_permitted_post_create_param("discourse_maps_from_map")
 
@@ -63,6 +63,12 @@ after_initialize do
   # Plugin module namespace.
   module ::DiscourseMaps
     PLUGIN_NAME = "discourse-maps"
+
+    # URL of the map page and, with ".json", of its data. Not "/map": the
+    # widely used Locations plugin registers "map" as a core topic list
+    # filter, whose route is drawn before any plugin route and would take
+    # over both. Must match MAP_PATH in lib/discourse-maps-paths.js.
+    MAP_PATH = "/mappa"
 
     # Name of the topic custom field where we store the geographic data.
     # Contains: { address, lat, lng, display_name, country_code, country,
@@ -89,7 +95,7 @@ after_initialize do
     end
 
     # Whether the given user is allowed to use the "New topic" button on
-    # the /map page (setting `discourse_maps_new_topic_groups`: empty =
+    # the /mappa page (setting `discourse_maps_new_topic_groups`: empty =
     # admins only). This is the server-side counterpart of the check done
     # in map-page.gjs to show/hide the button: without it, any user could
     # get the staff-only "map" tag applied by sending
@@ -181,7 +187,7 @@ after_initialize do
     # location counts: unlike the "map" tag, which any user may be able to
     # add by hand when the tag isn't in a restricted tag group, it can only
     # be written by this plugin after the permission check above. A topic
-    # created from /map without a location belongs to an allowed author,
+    # created from /mappa without a location belongs to an allowed author,
     # who passes that check anyway.
     def self.on_map?(topic)
       topic.custom_fields[LOCATION_FIELD].present?
@@ -551,7 +557,7 @@ after_initialize do
       days.map { |day| { id: day, name: day.to_s } }
     end
 
-    # Collects the topics to show on the /map page, ordered by descending
+    # Collects the topics to show on the /mappa page, ordered by descending
     # creation date. Respects the user's permissions (guardian) and
     # returns only the data needed by the map and the list.
     #
@@ -566,7 +572,7 @@ after_initialize do
     #                     exact date depending on which are present);
     #   - upcoming      : with no year given, shows only topics whose
     #                     period hasn't ended yet (today onward); the
-    #                     default view on /map, "today" or "upcoming",
+    #                     default view on /mappa, "today" or "upcoming",
     #                     is controlled by the discourse_maps_default_date_filter
     #                     site setting (applied client-side, see routes/map.js).
     #   - limit         : max number of topics returned (most recent first).
@@ -829,11 +835,11 @@ after_initialize do
 
     # Automatic assignment of the "map" tag (id read from the setting) and
     # saving of the location. The tag is assigned even without a location
-    # when the topic was created via the "New topic" button on the /map
+    # when the topic was created via the "New topic" button on the /mappa
     # page: the tag group is staff-only, so a normal user can't assign it
     # themselves through the composer (the selector hides it and the
     # server would filter it out anyway), and without this bypass it
-    # would never show up in the /map list. apply_map_metadata re-checks
+    # would never show up in the /mappa list. apply_map_metadata re-checks
     # `user` against discourse_maps_new_topic_groups: without it, any
     # user could send discourse_maps_from_map directly and bypass the
     # setting, which only gates the button client-side.
@@ -872,7 +878,7 @@ after_initialize do
   #  TopicQuery filter name (:latest also covers the homepage, its
   #  "categories + latest" layout and the RSS feed). Category and tag pages
   #  are the same lists scoped by options[:category] / options[:tags], and
-  #  are only filtered when their own setting says so. /map is unaffected:
+  #  are only filtered when their own setting says so. /mappa is unaffected:
   #  it has its own query (see base_map_scope).
   # --------------------------------------------------------------------------
   register_modifier(
@@ -898,7 +904,7 @@ after_initialize do
   ) { object.topic.custom_fields[::DiscourseMaps::LOCATION_FIELD] }
 
   # --------------------------------------------------------------------------
-  #  /map page controller.
+  #  /mappa page controller.
   #   - HTML request: boots the Ember app (which then renders the page);
   #   - JSON request: returns the topics with the map tag + location.
   # --------------------------------------------------------------------------
@@ -908,7 +914,7 @@ after_initialize do
     # For the direct (HTML) page load this isn't an XHR request.
     skip_before_action :check_xhr, only: [:index]
 
-    # /map.json is public and rebuilds the whole result and filter options
+    # /mappa.json is public and rebuilds the whole result and filter options
     # on every request: a per user (or per IP, for anonymous visitors)
     # limit keeps it from being used to load the server. Staff is exempt.
     before_action :rate_limit_map_json,
@@ -989,8 +995,8 @@ after_initialize do
     end
   end
 
-  # Registers the /map route (serves both the HTML and /map.json).
+  # Registers the map page route (serves both the HTML and the JSON data).
   Discourse::Application.routes.append do
-    get "/map" => "discourse_maps/map#index"
+    get ::DiscourseMaps::MAP_PATH => "discourse_maps/map#index"
   end
 end

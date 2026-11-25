@@ -1,5 +1,5 @@
 // ============================================================================
-//  Discourse Maps - Date filter for the /map page (year / month / day).
+//  Discourse Maps - Date filter for the /mappa page (year / month / day).
 //
 //  Replaces 3 separate comboboxes with a single "pill" control that opens
 //  a panel (bottom sheet on mobile, anchored popover on desktop) with

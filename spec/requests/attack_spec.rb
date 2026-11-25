@@ -40,7 +40,7 @@ RSpec.describe "Discourse Maps attack surface" do
   end
 
   def map_json(params = {})
-    get "/map.json", params: params
+    get "/mappa.json", params: params
     expect(response.status).to eq(200)
     response.parsed_body
   end
@@ -412,7 +412,7 @@ RSpec.describe "Discourse Maps attack surface" do
     end
   end
 
-  describe "/map.json input handling" do
+  describe "/mappa.json input handling" do
     fab!(:topic) { Fabricate(:topic, category:) }
 
     before { geolocate(topic) }
@@ -443,13 +443,13 @@ RSpec.describe "Discourse Maps attack surface" do
   describe "site and plugin configuration" do
     it "returns 404 when the plugin is disabled" do
       SiteSetting.discourse_maps_enabled = false
-      get "/map.json"
+      get "/mappa.json"
       expect(response.status).to eq(404)
     end
 
     it "requires login when the site does" do
       SiteSetting.login_required = true
-      get "/map.json"
+      get "/mappa.json"
       expect(response.status).to eq(403)
     end
   end

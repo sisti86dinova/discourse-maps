@@ -1,5 +1,5 @@
 // ============================================================================
-//  Discourse Maps - /map route template.
+//  Discourse Maps - /mappa route template.
 //
 //  Passes the data and filter state (from the controller) to the MapPage
 //  component.

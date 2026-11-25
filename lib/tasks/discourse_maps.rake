@@ -63,7 +63,7 @@ end
 
 # ----------------------------------------------------------------------------
 #  Reverse-geocodes the topics saved before the country was identified by its
-#  ISO 3166-1 alpha-2 code, so the /map filter stops listing the same country
+#  ISO 3166-1 alpha-2 code, so the /mappa filter stops listing the same country
 #  once per language it happened to be saved in ("Italia" / "Italy").
 #
 #  Only locations without a country_code are touched, and each distinct

@@ -37,7 +37,7 @@ export default {
         document.head.appendChild(style);
       }
 
-      // --- Link to the /map page in the sidebar -----------------------------
+      // --- Link to the /mappa page in the sidebar -----------------------------
       api.addCommunitySectionLink({
         name: "discourse-maps",
         route: "map",
@@ -60,14 +60,14 @@ export default {
       api.serializeOnUpdate("discourse_maps_location");
 
       // Sends "discourse_maps_from_map" when the topic was opened from the
-      // "New topic" button on the /map page (see map-page.gjs): the
+      // "New topic" button on the /mappa page (see map-page.gjs): the
       // server needs this to still assign the "map" tag, even if the
       // user didn't fill in the location via the composer modal.
       api.serializeOnCreate("discourse_maps_from_map");
 
       // --- Button in the composer toolbar -----------------------------
       // Shown only in the two editors where a location makes sense:
-      // creating a new topic from the /map page's "New topic" button
+      // creating a new topic from the /mappa page's "New topic" button
       // (flagged by discourse_maps_from_map, set in map-page.gjs), and
       // editing the first post of a topic that already has one (lets a
       // wrong address be corrected, or the location removed entirely,

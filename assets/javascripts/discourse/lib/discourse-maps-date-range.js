@@ -11,7 +11,7 @@
 // Returns null for anything that isn't a valid "YYYY-MM-DD" date:
 // Intl.DateTimeFormat#format throws on an invalid Date, and one malformed
 // topic (e.g. saved before the server validated dates) would otherwise
-// break the rendering of the whole /map page.
+// break the rendering of the whole /mappa page.
 function toDate(value) {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value ?? ""));
   if (!match) {

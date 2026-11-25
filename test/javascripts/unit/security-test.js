@@ -36,7 +36,7 @@ module("Discourse Maps | Unit | security", function (hooks) {
     assert.strictEqual(popupContent({}), null);
   });
 
-  test("/map popups escape titles, categories, tags and urls", function (assert) {
+  test("/mappa popups escape titles, categories, tags and urls", function (assert) {
     // Glimmer only lets the renderer instantiate components: run the real
     // getter on an object inheriting from MapPage, with controlled inputs.
     const page = Object.create(MapPage.prototype);

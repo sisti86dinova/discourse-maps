@@ -16,7 +16,7 @@ plugins:
     client: true
 
   # Groups (besides administrators, who always see it) allowed to see the
-  # "New topic" button on the /map page. Empty = admins only.
+  # "New topic" button on the /mappa page. Empty = admins only.
   discourse_maps_new_topic_groups:
     client: true
     type: group_list
@@ -25,7 +25,7 @@ plugins:
     allow_any: false
 
   # Topic lists that leave out geolocated topics (the ones carrying the
-  # "map" tag), so they mostly live on /map. Values are TopicQuery list
+  # "map" tag), so they mostly live on /mappa. Values are TopicQuery list
   # types: "latest" also covers the homepage and the RSS feed. Applied in
   # the topic_query_create_list_topics modifier registered in plugin.rb.
   discourse_maps_hide_from_lists:
@@ -49,7 +49,7 @@ plugins:
   discourse_maps_hide_on_tag_pages:
     default: false
 
-  # Max number of topics returned by /map.json (most recent first): bounds
+  # Max number of topics returned by /mappa.json (most recent first): bounds
   # the response size and the work per request on forums with many
   # geolocated topics. The page tells the user when the result was cut.
   discourse_maps_max_topics:
@@ -58,7 +58,7 @@ plugins:
     min: 1
     max: 5000
 
-  # Max /map.json requests per minute for each user (or IP address, for
+  # Max /mappa.json requests per minute for each user (or IP address, for
   # anonymous visitors). Staff is not limited.
   discourse_maps_requests_per_minute:
     type: integer
@@ -73,7 +73,7 @@ plugins:
     type: color
     default: "0088CC"
 
-  # Period shown on /map before any filter is manually picked (see
+  # Period shown on /mappa before any filter is manually picked (see
   # routes/map.js): "today" only shows today's events, "upcoming" shows
   # today's and every future one (no upper bound), leaving past events
   # out either way. Read client-side only; the server just receives
