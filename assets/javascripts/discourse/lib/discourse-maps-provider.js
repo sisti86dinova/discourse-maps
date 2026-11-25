@@ -365,7 +365,7 @@ export function staticMapUrl(location, siteSettings, options = {}) {
 // Leaflet 1.9.x): popupHtml must be built by the caller from escaped
 // values, while display_name comes from the geocoder (OpenStreetMap data
 // anyone can edit) and is always escaped here.
-function popupContent(m) {
+export function popupContent(m) {
   if (m.popupHtml) {
     return m.popupHtml;
   }

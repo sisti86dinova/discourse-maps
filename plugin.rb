@@ -40,6 +40,9 @@ register_svg_icon "angle-down"
 # ----------------------------------------------------------------------------
 after_initialize do
   add_permitted_post_create_param("discourse_maps_location", :hash)
+  # Without this the flag set by the /map page's "New topic" button would be
+  # dropped by PostsController before reaching on(:post_created).
+  add_permitted_post_create_param("discourse_maps_from_map")
 
   # Lets the location be set, corrected or removed by editing the topic's
   # first post, instead of only at creation time (see
@@ -159,7 +162,8 @@ after_initialize do
       return unless user_allowed_from_map?(user) || on_map?(topic)
 
       location = sanitize_location(location)
-      return if location.blank? && from_map.blank?
+      from_map = ActiveModel::Type::Boolean.new.cast(from_map)
+      return if location.blank? && !from_map
 
       if location.present?
         topic.custom_fields[LOCATION_FIELD] = location
@@ -242,14 +246,19 @@ after_initialize do
       { scope: scope, tag: tag }
     end
 
-    # Filters a scope by tag: the topic must have ALL the given tags.
-    def self.filter_by_tags(scope, tag_names)
-      Tag
-        .where(name: tag_names)
-        .pluck(:id)
-        .each do |tid|
-          scope = scope.where(id: TopicTag.where(tag_id: tid).select(:topic_id))
-        end
+    # Filters a scope by tag: the topic must have ALL the given tags. A
+    # tag that doesn't exist, or that the user isn't allowed to see,
+    # matches nothing: ignoring it instead would let a hidden tag's name be
+    # used to probe which topics carry it.
+    def self.filter_by_tags(scope, tag_names, guardian)
+      names = tag_names.uniq
+      visible_names = names - DiscourseTagging.hidden_tag_names(guardian)
+      tag_ids = Tag.where(name: visible_names).pluck(:id)
+      return scope.none if tag_ids.size < names.size
+
+      tag_ids.each do |tid|
+        scope = scope.where(id: TopicTag.where(tag_id: tid).select(:topic_id))
+      end
       scope
     end
 
@@ -566,7 +575,7 @@ after_initialize do
       scope = scope.where(category_id: category_id) if category_id.present?
 
       # Tag filter: the topic must have all the selected tags.
-      scope = filter_by_tags(scope, tag_names) if tag_names.present?
+      scope = filter_by_tags(scope, tag_names, guardian) if tag_names.present?
 
       # Country filter.
       scope = filter_by_countries(scope, country_keys) if country_keys.present?
@@ -585,6 +594,10 @@ after_initialize do
 
       # Preload custom fields to avoid N+1 queries.
       Topic.preload_custom_fields(topics, [LOCATION_FIELD])
+
+      # Tags in staff-only (or otherwise restricted) tag groups stay out of
+      # the response, as in core's topic lists.
+      hidden_tag_names = DiscourseTagging.hidden_tag_names(guardian)
 
       # Topics already read (at least one post) by the current user, for
       # the "visited" class in the list (like in the native topic list).
@@ -606,7 +619,7 @@ after_initialize do
           fancy_title: topic.fancy_title,
           url: "/t/#{topic.slug}/#{topic.id}",
           category_id: topic.category_id,
-          tags: topic.tags.map(&:name),
+          tags: topic.tags.map(&:name) - hidden_tag_names,
           location: topic.custom_fields[LOCATION_FIELD],
           image_url: topic.image_url,
           views: topic.views,
@@ -658,7 +671,11 @@ after_initialize do
       # Available categories: respect the tag, country and period filters already set.
       scope_for_categories = scope
       scope_for_categories =
-        filter_by_tags(scope_for_categories, tag_names) if tag_names.present?
+        filter_by_tags(
+          scope_for_categories,
+          tag_names,
+          guardian
+        ) if tag_names.present?
       scope_for_categories =
         filter_by_countries(
           scope_for_categories,
@@ -690,6 +707,7 @@ after_initialize do
       tags =
         Tag
           .where(id: tag_ids)
+          .where.not(name: DiscourseTagging.hidden_tag_names(guardian))
           .order(:name)
           .pluck(:id, :name)
           .map { |id, name| { id: id, name: name } }
@@ -701,7 +719,11 @@ after_initialize do
           category_id: category_id
         ) if category_id.present?
       scope_for_countries =
-        filter_by_tags(scope_for_countries, tag_names) if tag_names.present?
+        filter_by_tags(
+          scope_for_countries,
+          tag_names,
+          guardian
+        ) if tag_names.present?
       scope_for_countries =
         filter_by_date_range(scope_for_countries, *date_range) if date_range
       countries = countries_for_scope(scope_for_countries)
@@ -713,7 +735,11 @@ after_initialize do
       scope_for_dates =
         scope_for_dates.where(category_id: category_id) if category_id.present?
       scope_for_dates =
-        filter_by_tags(scope_for_dates, tag_names) if tag_names.present?
+        filter_by_tags(
+          scope_for_dates,
+          tag_names,
+          guardian
+        ) if tag_names.present?
       scope_for_dates =
         filter_by_countries(
           scope_for_dates,
@@ -765,11 +791,9 @@ after_initialize do
 
     if manager.args[:topic_id].blank? && location.present? &&
          !::DiscourseMaps.sanitize_location(location)
-      next(
-        manager.create_error_result(
-          I18n.t("discourse_maps.errors.invalid_location")
-        )
-      )
+      result = NewPostResult.new(:discourse_maps, false)
+      result.add_error(I18n.t("discourse_maps.errors.invalid_location"))
+      next result
     end
 
     nil

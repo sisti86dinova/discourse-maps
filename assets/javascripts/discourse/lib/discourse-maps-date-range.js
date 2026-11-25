@@ -19,7 +19,13 @@ function toDate(value) {
   }
   const [year, month, day] = match.slice(1).map(Number);
   const date = new Date(year, month - 1, day);
-  return Number.isNaN(date.getTime()) ? null : date;
+  // Date rolls impossible values over (2026-13-45 becomes 2027-02-14)
+  // instead of rejecting them.
+  const valid =
+    date.getFullYear() === year &&
+    date.getMonth() === month - 1 &&
+    date.getDate() === day;
+  return valid ? date : null;
 }
 
 function dateFormatter(options) {
