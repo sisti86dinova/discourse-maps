@@ -352,6 +352,66 @@ RSpec.describe "Discourse Maps attack surface" do
     end
   end
 
+  describe "editing the author's own geolocated topic" do
+    fab!(:own_topic) { Fabricate(:topic, user: allowed_user, category:) }
+    fab!(:own_post) { Fabricate(:post, topic: own_topic, user: allowed_user) }
+
+    before do
+      geolocate(own_topic)
+      sign_in(allowed_user)
+    end
+
+    def edit(**post_params)
+      put "/posts/#{own_post.id}.json",
+          params: {
+            post: {
+              raw: "Edited body #{SecureRandom.hex(4)} of the event."
+            }.merge(post_params)
+          }
+    end
+
+    def stored_location
+      own_topic.reload.custom_fields[DiscourseMaps::LOCATION_FIELD]
+    end
+
+    it "keeps the location when the edit doesn't carry one" do
+      edit
+      expect(response.status).to eq(200)
+      expect(stored_location).to be_present
+      expect(own_topic.tags).to include(map_tag)
+    end
+
+    it "keeps the location on an explicit null" do
+      put "/posts/#{own_post.id}.json",
+          params: {
+            post: {
+              raw: "Edited body #{SecureRandom.hex(4)} of the event.",
+              discourse_maps_location: nil
+            }
+          }.to_json,
+          headers: {
+            "CONTENT_TYPE" => "application/json"
+          }
+      expect(response.status).to eq(200)
+      expect(stored_location).to be_present
+    end
+
+    ["not a hash", %w[a b], "42"].each do |value|
+      it "ignores #{value.inspect} without failing" do
+        edit(discourse_maps_location: value)
+        expect(response.status).to eq(200)
+        expect(stored_location["lat"]).to eq(41.89)
+      end
+    end
+
+    it "removes the location on the explicit remove value" do
+      edit(discourse_maps_location: "")
+      expect(response.status).to eq(200)
+      expect(stored_location).to be_blank
+      expect(own_topic.tags).not_to include(map_tag)
+    end
+  end
+
   describe "/map.json input handling" do
     fab!(:topic) { Fabricate(:topic, category:) }
 

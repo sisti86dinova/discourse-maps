@@ -80,6 +80,23 @@ RSpec.describe "Discourse Maps security" do
       expect(on_map?(own_topic)).to eq(false)
     end
 
+    it "is ignored when the author tagged the topic with the map tag by hand" do
+      own_topic.tags << map_tag
+
+      sign_in(user)
+      put "/posts/#{first_post.id}.json",
+          params: {
+            post: {
+              raw: "#{first_post.raw} edited",
+              discourse_maps_location: location
+            }
+          }
+      expect(response.status).to eq(200)
+      expect(
+        own_topic.reload.custom_fields[DiscourseMaps::LOCATION_FIELD]
+      ).to be_blank
+    end
+
     it "updates the location of a topic that is already on the map" do
       own_topic.custom_fields[DiscourseMaps::LOCATION_FIELD] = location.merge(
         lat: 45.0

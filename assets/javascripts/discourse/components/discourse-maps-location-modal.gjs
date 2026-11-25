@@ -54,7 +54,7 @@ export default class DiscourseMapsLocationModal extends Component {
     super(...arguments);
 
     // Prefills from the location already on the composer model, if this
-    // session already touched it (set or removed: an explicit null means
+    // session already touched it (set or removed: an explicit "" means
     // the user just removed it, and must NOT fall back to the topic's
     // saved value below). Otherwise, when editing the first post of an
     // already geolocated topic, falls back to the one saved on the topic.
@@ -169,10 +169,12 @@ export default class DiscourseMapsLocationModal extends Component {
     this.args.closeModal();
   }
 
-  // Removes the location associated with the topic, if any.
+  // Removes the location associated with the topic, if any. The empty
+  // string is the explicit "remove" value the server expects (see
+  // DiscourseMaps::REMOVE_LOCATION): null would read as "unchanged".
   @action
   remove() {
-    this.composer.model.set("discourse_maps_location", null);
+    this.composer.model.set("discourse_maps_location", "");
     this.args.closeModal();
   }
 

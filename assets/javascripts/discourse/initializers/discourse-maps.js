@@ -55,7 +55,7 @@ export default {
         "topic.discourse_maps_location"
       );
       // ...and also when editing the first post, so a correction or a
-      // removal (modal's "Remove location" sets it to null) reaches the
+      // removal (modal's "Remove location" sets it to "") reaches the
       // server (see add_permitted_post_update_param in plugin.rb).
       api.serializeOnUpdate("discourse_maps_location");
 

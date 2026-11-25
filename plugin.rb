@@ -177,34 +177,46 @@ after_initialize do
       end
     end
 
-    # Whether the topic is already published to the map: it has a saved
-    # location, or the "map" tag (a topic created from /map without one).
+    # Whether the topic is already published to the map. Only the saved
+    # location counts: unlike the "map" tag, which any user may be able to
+    # add by hand when the tag isn't in a restricted tag group, it can only
+    # be written by this plugin after the permission check above. A topic
+    # created from /map without a location belongs to an allowed author,
+    # who passes that check anyway.
     def self.on_map?(topic)
-      return true if topic.custom_fields[LOCATION_FIELD].present?
-
-      tag = map_tag
-      tag.present? && topic.tags.include?(tag)
+      topic.custom_fields[LOCATION_FIELD].present?
     end
 
+    # Value the client sends to remove a topic's location while editing
+    # (the modal's "Remove location"). It must differ from a missing
+    # param: PostsController passes every permitted update param to the
+    # revisor, as nil when the request doesn't carry it, so nil has to
+    # mean "unchanged" or any edit made without the composer's location
+    # (API, mobile app, an edit that never opened the modal) would wipe it.
+    REMOVE_LOCATION = ""
+
     # Applies a location change made while editing the topic's first post
-    # (see add_permitted_post_update_param above): a present location
-    # overwrites the custom field, after sanitizing it like on creation
-    # (see apply_map_metadata/sanitize_location); a blank one removes it
-    # entirely, together with the "map" tag (the only way to drop it,
-    # since the tag group is staff-only and the tag selector hides it
-    # from the composer). Silently ignored for a reply (only the first
-    # post carries a location) or for a malformed location (missing/
-    # invalid fields) coming from a non-compliant client: the modal's own
-    # required fields prevent this through normal use, same reasoning as
-    # the creation-time check in NewPostManager.add_handler below.
+    # (see add_permitted_post_update_param above):
+    #   - nil: nothing to do (see REMOVE_LOCATION);
+    #   - REMOVE_LOCATION: removes the location and the "map" tag;
+    #   - a hash: overwrites the location, after sanitizing it like on
+    #     creation (see apply_map_metadata/sanitize_location).
+    # Anything else (another string, an array, a number) or a malformed
+    # hash is ignored: the modal never sends those.
+    #
+    # Known limitation: core runs this handler before validating the rest
+    # of the edit, so a location change is applied even if the text edit
+    # is then refused, and it isn't recorded in the post's revisions.
+    # Only users allowed to edit the post can trigger it.
     def self.update_map_metadata(post, location)
       return unless post.is_first_post?
+      return if location.nil?
 
       topic = post.topic
 
-      if location.blank?
+      if location == REMOVE_LOCATION
         remove_map_metadata(topic)
-      else
+      elsif location.is_a?(Hash) || location.respond_to?(:to_unsafe_h)
         apply_map_metadata(topic, location, nil, post.user)
       end
     end
@@ -373,6 +385,9 @@ after_initialize do
     # keys/types riding along with it.
     def self.sanitize_location(raw_location)
       return nil if raw_location.blank?
+      unless raw_location.is_a?(Hash) || raw_location.respond_to?(:to_unsafe_h)
+        return nil
+      end
 
       location =
         (
