@@ -13,6 +13,7 @@
 // ============================================================================
 
 import loadScript from "discourse/lib/load-script";
+import { escapeExpression } from "discourse/lib/utilities";
 
 // Leaflet is vendored in the plugin (public/leaflet/) instead of being
 // loaded from an external CDN (unpkg): the forum might run behind a
@@ -348,6 +349,18 @@ export function staticMapUrl(location, siteSettings, options = {}) {
 //  MAP RENDERING
 // ===========================================================================
 
+// Popup content for a marker. Both Leaflet's bindPopup and Google's
+// InfoWindow treat a string as HTML (see CVE-2025-69993, unfixed in
+// Leaflet 1.9.x): popupHtml must be built by the caller from escaped
+// values, while display_name comes from the geocoder (OpenStreetMap data
+// anyone can edit) and is always escaped here.
+function popupContent(m) {
+  if (m.popupHtml) {
+    return m.popupHtml;
+  }
+  return m.display_name ? escapeExpression(m.display_name) : null;
+}
+
 // Normalizes a marker: accepts lat/lng even as strings.
 function normalizeMarkers(markers) {
   return (markers || [])
@@ -374,7 +387,7 @@ async function createLeafletMap(element, { markers, interactive, apiKey, cluster
   // If the LocationIQ key is available we use its tiles, otherwise we
   // fall back to the standard OpenStreetMap tiles.
   const tileUrl = apiKey
-    ? `https://{s}-tiles.locationiq.com/v3/streets/r/{z}/{x}/{y}.png?key=${apiKey}`
+    ? `https://{s}-tiles.locationiq.com/v3/streets/r/{z}/{x}/{y}.png?key=${encodeURIComponent(apiKey)}`
     : "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
 
   L.tileLayer(tileUrl, {
@@ -397,8 +410,9 @@ async function createLeafletMap(element, { markers, interactive, apiKey, cluster
     });
 
     const marker = L.marker([m.lat, m.lng], { icon }).addTo(map);
-    if (m.popupHtml || m.display_name) {
-      marker.bindPopup(m.popupHtml || m.display_name);
+    const content = popupContent(m);
+    if (content) {
+      marker.bindPopup(content);
     }
     // Prevents the click on the pin from propagating to the map:
     // otherwise the cluster-closing listener (below) would immediately
@@ -556,10 +570,9 @@ async function createGoogleMap(
     };
     const marker = new google.maps.Marker({ position, map, icon });
 
-    if (m.popupHtml || m.display_name) {
-      const info = new google.maps.InfoWindow({
-        content: m.popupHtml || m.display_name,
-      });
+    const content = popupContent(m);
+    if (content) {
+      const info = new google.maps.InfoWindow({ content });
       marker.addListener("click", () => {
         activeInfoWindow?.close();
         info.open(map, marker);

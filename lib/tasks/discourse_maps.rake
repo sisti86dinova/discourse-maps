@@ -50,7 +50,10 @@ module DiscourseMapsBackfill
 
   def self.google_country(body)
     component =
-      body["results"]&.first&.dig("address_components")&.find { |c| c["types"].include?("country") }
+      body["results"]
+        &.first
+        &.dig("address_components")
+        &.find { |c| c["types"].include?("country") }
     code = component&.dig("short_name")
     return nil if code.blank?
 
@@ -80,7 +83,9 @@ task "discourse_maps:backfill_country_codes" => :environment do
       SiteSetting.discourse_maps_locationiq_api_key
     end
 
-  abort("No API key configured for the \"#{provider}\" provider.") if api_key.blank?
+  if api_key.blank?
+    abort("No API key configured for the \"#{provider}\" provider.")
+  end
 
   # Several topics at the same position (a recurring venue): one call each.
   resolved = {}
@@ -104,10 +109,19 @@ task "discourse_maps:backfill_country_codes" => :environment do
 
       unless resolved.key?(key)
         sleep(DiscourseMapsBackfill::DELAY) if resolved.any?
-        resolved[key] = DiscourseMapsBackfill.reverse_geocode(*key, provider, api_key, locale)
+        resolved[key] = DiscourseMapsBackfill.reverse_geocode(
+          *key,
+          provider,
+          api_key,
+          locale
+        )
       end
 
       country = resolved[key]
+      # Provider output is untrusted: only a two-letter code is stored,
+      # same rule as DiscourseMaps.sanitize_location.
+      country = nil if country &&
+        !country[:code].match?(::DiscourseMaps::COUNTRY_CODE_REGEXP)
       if country.nil?
         failed += 1
         puts "topic #{field.topic_id}: reverse geocoding failed, left unchanged"

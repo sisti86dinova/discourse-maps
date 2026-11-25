@@ -148,8 +148,16 @@ after_initialize do
     # on approval of a post that was in the moderation queue (on
     # :approved_post), because in that second case the post is recreated
     # by ReviewableQueuedPost and :post_created is not emitted.
+    #
+    # Only users allowed to publish to the map (see user_allowed_from_map?)
+    # may put a topic on it; once a topic is on the map, its location can
+    # be corrected by whoever can edit its first post. Without this, any
+    # user could send "discourse_maps_location" directly (API, or a
+    # modified client) and publish to the public map, even though the
+    # composer only offers the location button to allowed users.
     def self.apply_map_metadata(topic, location, from_map, user)
-      from_map = false unless user_allowed_from_map?(user)
+      return unless user_allowed_from_map?(user) || on_map?(topic)
+
       location = sanitize_location(location)
       return if location.blank? && from_map.blank?
 
@@ -163,6 +171,15 @@ after_initialize do
         topic.tags << tag
         topic.save!
       end
+    end
+
+    # Whether the topic is already published to the map: it has a saved
+    # location, or the "map" tag (a topic created from /map without one).
+    def self.on_map?(topic)
+      return true if topic.custom_fields[LOCATION_FIELD].present?
+
+      tag = map_tag
+      tag.present? && topic.tags.include?(tag)
     end
 
     # Applies a location change made while editing the topic's first post
@@ -218,6 +235,10 @@ after_initialize do
           .where(id: topic_ids)
           .joins(:topic_tags)
           .where(topic_tags: { tag_id: tag.id }) # "map" tag constraint
+
+      # Unlisted topics stay hidden from those who can't see them in the
+      # regular topic lists either (same rule as TopicQuery).
+      scope = scope.visible unless guardian.can_see_unlisted_topics?
 
       { scope: scope, tag: tag }
     end
@@ -849,36 +870,46 @@ after_initialize do
         # Data for the map and the list, filtered by user permissions and
         # by any category/tag filters passed as query parameters.
         format.json do
-          tag_names = Array(params[:tags]&.split(","))
-          country_keys = Array(params[:countries]&.split(","))
-          upcoming = ActiveModel::Type::Boolean.new.cast(params[:upcoming])
+          filter_params = {
+            category_id: integer_param(:category_id, 1..),
+            tag_names: list_param(:tags),
+            country_keys: list_param(:countries),
+            year: integer_param(:year, 1..9999),
+            month: integer_param(:month, 1..12),
+            day: integer_param(:day, 1..31),
+            upcoming: ActiveModel::Type::Boolean.new.cast(params[:upcoming])
+          }
 
-          topics =
-            ::DiscourseMaps.map_topics(
-              guardian,
-              category_id: params[:category_id],
-              tag_names: tag_names,
-              country_keys: country_keys,
-              year: params[:year],
-              month: params[:month],
-              day: params[:day],
-              upcoming: upcoming
-            )
+          topics = ::DiscourseMaps.map_topics(guardian, **filter_params)
           filters =
-            ::DiscourseMaps.map_filter_options(
-              guardian,
-              category_id: params[:category_id],
-              tag_names: tag_names,
-              country_keys: country_keys,
-              year: params[:year],
-              month: params[:month],
-              day: params[:day],
-              upcoming: upcoming
-            )
+            ::DiscourseMaps.map_filter_options(guardian, **filter_params)
 
           render json: { topics: topics, filters: filters }
         end
       end
+    end
+
+    private
+
+    # Max values accepted in a comma-separated filter (tags, countries):
+    # the UI only ever sends one, this just bounds the work per request.
+    MAX_LIST_VALUES = 10
+
+    # Query params are user-controlled: anything other than a plain string
+    # (e.g. ?tags[]=x or ?month=13) is ignored instead of raising a 500.
+    def integer_param(key, range)
+      value = params[key]
+      return nil unless value.is_a?(String) && value.match?(/\A\d{1,10}\z/)
+
+      number = value.to_i
+      range.cover?(number) ? number : nil
+    end
+
+    def list_param(key)
+      value = params[key]
+      return [] unless value.is_a?(String)
+
+      value.split(",").map(&:strip).reject(&:blank?).first(MAX_LIST_VALUES)
     end
   end
 

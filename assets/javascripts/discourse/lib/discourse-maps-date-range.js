@@ -8,9 +8,18 @@
 // avoid the timezone off-by-one that `new Date("YYYY-MM-DD")` would
 // introduce (interpreted as UTC midnight, it can roll back to the
 // previous day in the local timezone).
+// Returns null for anything that isn't a valid "YYYY-MM-DD" date:
+// Intl.DateTimeFormat#format throws on an invalid Date, and one malformed
+// topic (e.g. saved before the server validated dates) would otherwise
+// break the rendering of the whole /map page.
 function toDate(value) {
-  const [year, month, day] = value.split("-").map(Number);
-  return new Date(year, month - 1, day);
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value ?? ""));
+  if (!match) {
+    return null;
+  }
+  const [year, month, day] = match.slice(1).map(Number);
+  const date = new Date(year, month - 1, day);
+  return Number.isNaN(date.getTime()) ? null : date;
 }
 
 function dateFormatter(options) {
@@ -27,17 +36,18 @@ export default function formatDateRange(
   location,
   options = { year: "numeric", month: "short", day: "numeric" }
 ) {
-  if (!location?.start_date || !location?.end_date) {
+  const startDate = toDate(location?.start_date);
+  const endDate = toDate(location?.end_date);
+  if (!startDate || !endDate) {
     return null;
   }
 
   const formatter = dateFormatter(options);
-  const start = formatter.format(toDate(location.start_date));
+  const start = formatter.format(startDate);
   if (location.start_date === location.end_date) {
     return start;
   }
-  const end = formatter.format(toDate(location.end_date));
-  return `${start} – ${end}`;
+  return `${start} – ${formatter.format(endDate)}`;
 }
 
 // Same as above, but returns start/end as separate values (instead of a
@@ -49,7 +59,9 @@ export function formatDateParts(
   location,
   options = { year: "numeric", month: "long", day: "numeric" }
 ) {
-  if (!location?.start_date || !location?.end_date) {
+  const startDate = toDate(location?.start_date);
+  const endDate = toDate(location?.end_date);
+  if (!startDate || !endDate) {
     return null;
   }
 
@@ -57,8 +69,8 @@ export function formatDateParts(
   const sameDay = location.start_date === location.end_date;
 
   return {
-    start: formatter.format(toDate(location.start_date)),
-    end: sameDay ? null : formatter.format(toDate(location.end_date)),
+    start: formatter.format(startDate),
+    end: sameDay ? null : formatter.format(endDate),
     sameDay,
   };
 }

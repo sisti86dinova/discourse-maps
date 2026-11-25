@@ -112,3 +112,46 @@ interactive map, and static map all switch together based on
 - **LocationIQ** — OpenStreetMap tiles + geocoding (5K free requests/day).
 - **Google Maps** — Maps JavaScript API + Google Geocoding + Static Maps API
   (10K free requests/month).
+
+## Security
+
+### API keys are public
+
+Geocoding, tiles and static maps are requested directly by the visitor's
+browser, so the configured API key is sent to every visitor (anonymous ones
+included) and can be read from the page. Treat it as a public key and lock it
+down with the provider before going live:
+
+- **Google Maps**: use a dedicated browser key with an **HTTP referrer**
+  restriction (your forum's domain only) and **API restrictions** limited to
+  Maps JavaScript API, Geocoding API and Maps Static API. Set daily quota caps
+  and billing alerts. Static map URLs can't be signed by the plugin (the
+  signing secret would have to reach the browser), so keep the Maps Static API
+  quota for unsigned requests low.
+- **LocationIQ**: use a public `pk.` token with an **HTTP referrer**
+  restriction for your forum's domain, never an `sk.` token. Referrer
+  restrictions can be spoofed outside a browser, so also set usage limits and
+  rotate the token if it gets abused.
+
+### OpenStreetMap tiles
+
+Without a LocationIQ key the interactive map falls back to the public
+`tile.openstreetmap.org` servers, whose
+[tile usage policy](https://operations.osmfoundation.org/policies/tiles/)
+doesn't allow heavy use. On a busy forum, configure a LocationIQ key (or
+another tile provider).
+
+### Leaflet CVE-2025-69993
+
+The bundled Leaflet 1.9.4 is affected by CVE-2025-69993 (HTML injection
+through `bindPopup`, no fixed release). The plugin never passes unescaped
+text to popups: topic titles, categories, tags and the geocoder's address
+(OpenStreetMap data that anyone can edit) are escaped before being rendered.
+Security scanners will still flag the Leaflet version.
+
+### Who can publish to the map
+
+Only admins and the groups in `discourse_maps_new_topic_groups` can put a
+topic on the map, also when the location is sent directly through the API.
+Once a topic is on the map, its location can be corrected by anyone who can
+edit its first post.
