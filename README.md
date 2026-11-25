@@ -115,6 +115,86 @@ interactive map, and static map all switch together based on
 - **Google Maps** — Maps JavaScript API + Google Geocoding + Static Maps API
   (10K free requests/month).
 
+## Deployment checklist
+
+Recommended configuration for a production forum, in this order.
+
+1. **Install the plugin** in the container's `app.yml` and rebuild:
+
+   ```yaml
+   hooks:
+     after_code:
+       - exec:
+           cd: $home/plugins
+           cmd:
+             - git clone https://github.com/sisti86dinova/discourse-maps.git
+   ```
+
+   ```sh
+   ./launcher rebuild app
+   ```
+
+2. **Create the map tag and restrict it to staff.** Create the tag (e.g.
+   `mappa`), then in **Admin > Tags > Tag groups** add it to a tag group
+   visible to **everyone** but usable only by **staff**. Without this, users
+   can add the tag by hand: it can't put their topic on the map (only a saved
+   location does), but it hides the topic from the lists selected in
+   `discourse_maps_hide_from_lists`.
+
+3. **Point the plugin at the tag.** Set `discourse_maps_map_tag_id` to the
+   tag's id, shown by `/tags.json` (the default `295` is only an example).
+
+4. **Configure the provider and lock down its key** (see
+   [API keys are public](#api-keys-are-public)):
+   - LocationIQ: a `pk.` token with an HTTP referrer restriction for the
+     forum's domain, plus usage limits;
+   - Google: a browser key with an HTTP referrer restriction, API
+     restrictions (Maps JavaScript, Geocoding, Maps Static), quota caps and
+     billing alerts.
+
+5. **Choose who can publish.** Add the groups allowed to put topics on the map
+   to `discourse_maps_new_topic_groups`. Admins can always publish;
+   moderators can't unless they're in one of these groups.
+
+6. **Choose where map topics appear.** Pick the lists in
+   `discourse_maps_hide_from_lists`. A common setup is `latest` and
+   `suggested`, with `discourse_maps_hide_on_category_pages` and
+   `discourse_maps_hide_on_tag_pages` off: map topics then only show on
+   `/map` and on their category and tag pages.
+
+7. **Review the limits.** The defaults (`discourse_maps_max_topics` 500,
+   `discourse_maps_requests_per_minute` 60) suit most forums; raise the first
+   only if users need to see more events at once without filtering.
+
+8. **Pick the default period** shown on `/map` in
+   `discourse_maps_default_date_filter` (`today` or `upcoming`).
+
+9. **Upgrading from a version without country codes?** Run the backfill once:
+
+   ```sh
+   ./launcher enter app
+   rake discourse_maps:backfill_country_codes
+   ```
+
+10. **Check it works:** open `/map` as an anonymous visitor (the map loads,
+    no "not configured" notice), create a topic from its **New topic** button
+    with a location, and check that it appears on `/map` and is hidden from
+    the lists you selected.
+
+## Known limitations
+
+- **Location edits and revisions:** core runs the plugin's edit handler before
+  validating the rest of the edit. A location change made while editing the
+  first post is applied even if the text edit is then refused, and it isn't
+  recorded in the post's revision history. Only users allowed to edit the post
+  can do this.
+- **Wiki topics:** anyone who can edit a wiki first post can move or remove
+  its location, as with the rest of the post.
+- **Categories missing on the client:** category names and colors on `/map`
+  come from the categories Discourse sends to the browser. If a category isn't
+  among them (e.g. with lazy-loaded categories), its topics still show, but
+  without the category in the filter and in the popup.
+
 ## Security
 
 ### API keys are public
