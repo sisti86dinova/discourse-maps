@@ -17,7 +17,8 @@ import { service } from "@ember/service";
 import didInsert from "@ember/render-modifiers/modifiers/did-insert";
 import didUpdate from "@ember/render-modifiers/modifiers/did-update";
 import willDestroy from "@ember/render-modifiers/modifiers/will-destroy";
-import { createMap } from "../lib/discourse-maps-provider";
+import { i18n } from "discourse-i18n";
+import { createMap, providerApiKey } from "../lib/discourse-maps-provider";
 
 export default class DiscourseMapsMap extends Component {
   @service siteSettings;
@@ -36,9 +37,7 @@ export default class DiscourseMapsMap extends Component {
 
   // Picks the correct API key based on the configured provider.
   get apiKey() {
-    return this.siteSettings.discourse_maps_provider === "google"
-      ? this.siteSettings.discourse_maps_google_api_key
-      : this.siteSettings.discourse_maps_locationiq_api_key;
+    return providerApiKey(this.siteSettings);
   }
 
   // Builds (or rebuilds) the map in the stored container.
@@ -80,12 +79,18 @@ export default class DiscourseMapsMap extends Component {
   }
 
   <template>
-    <div
-      class="discourse-map"
-      {{didInsert this.setup}}
-      {{didUpdate this.refresh this.args.markers this.args.location}}
-      {{willDestroy this.teardown}}
-    ></div>
+    {{#if this.apiKey}}
+      <div
+        class="discourse-map"
+        {{didInsert this.setup}}
+        {{didUpdate this.refresh this.args.markers this.args.location}}
+        {{willDestroy this.teardown}}
+      ></div>
+    {{else}}
+      <p class="discourse-map__not-configured alert alert-info">
+        {{i18n "discourse_maps.map.not_configured"}}
+      </p>
+    {{/if}}
   </template>
 }
 

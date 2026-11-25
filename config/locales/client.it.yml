@@ -7,6 +7,9 @@ it:
         empty: "Nessun topic geolocalizzato al momento."
         empty_today: "Nessun topic geolocalizzato disponibile per la data di oggi."
         empty_upcoming: "Nessun topic geolocalizzato in programma da oggi in poi."
+        truncated: "Sono mostrati solo i %{count} post più recenti. Usa i filtri per restringere i risultati."
+      map:
+        not_configured: "La mappa non è disponibile: non è configurata nessuna chiave API per il provider della mappa."
       popup:
         category: "Categoria:"
         tags: "Tags:"

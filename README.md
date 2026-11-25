@@ -98,10 +98,12 @@ Configurable from **Admin > Settings > Plugins**:
 | `discourse_maps_hide_on_category_pages` | Also hide them from the lists above on category pages (default: off). |
 | `discourse_maps_hide_on_tag_pages` | Also hide them from the lists above on tag pages (default: off). |
 | `discourse_maps_default_date_filter` | Period shown on `/map` before any filter is picked: `today` (only today's events) or `upcoming` (today's and future ones). |
+| `discourse_maps_max_topics` | Maximum number of topics returned to the `/map` page, most recent first (default: `500`). When there are more, the page asks to narrow the results with the filters. |
+| `discourse_maps_requests_per_minute` | Maximum `/map` data requests per minute for each user, or IP address for anonymous visitors (default: `60`). Staff is not limited. |
 | `discourse_maps_cluster_color` | Background color of the "cluster" pin (the numbered circle shown when multiple topics share the same map location). |
 | `discourse_maps_provider` | Map/geocoding provider: `locationiq` or `google`. |
-| `discourse_maps_locationiq_api_key` | LocationIQ API key. |
-| `discourse_maps_google_api_key` | Google Maps API key. |
+| `discourse_maps_locationiq_api_key` | LocationIQ API key (required with the `locationiq` provider). |
+| `discourse_maps_google_api_key` | Google Maps API key (required with the `google` provider). |
 
 ## Supported providers
 
@@ -133,13 +135,20 @@ down with the provider before going live:
   restrictions can be spoofed outside a browser, so also set usage limits and
   rotate the token if it gets abused.
 
-### OpenStreetMap tiles
+### An API key is required
 
-Without a LocationIQ key the interactive map falls back to the public
-`tile.openstreetmap.org` servers, whose
+Without a key for the configured provider, the maps show a "not configured"
+notice instead of loading. There's no fallback to the public
+`tile.openstreetmap.org` servers: their
 [tile usage policy](https://operations.osmfoundation.org/policies/tiles/)
-doesn't allow heavy use. On a busy forum, configure a LocationIQ key (or
-another tile provider).
+doesn't allow heavy use.
+
+### Load on the `/map` page
+
+`/map.json` is public and rebuilds the result and the filter options on every
+request. It returns at most `discourse_maps_max_topics` topics and is limited
+to `discourse_maps_requests_per_minute` requests per minute per user (or IP
+address), so it can't easily be used to load the server.
 
 ### Leaflet CVE-2025-69993
 

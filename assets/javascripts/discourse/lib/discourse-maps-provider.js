@@ -310,6 +310,17 @@ export async function geocodeAddress(query, siteSettings) {
   );
 }
 
+/**
+ * API key of the configured provider.
+ * @param {Object} siteSettings - Discourse's site-settings service
+ * @returns {string}
+ */
+export function providerApiKey(siteSettings) {
+  return siteSettings.discourse_maps_provider === "google"
+    ? siteSettings.discourse_maps_google_api_key
+    : siteSettings.discourse_maps_locationiq_api_key;
+}
+
 // ===========================================================================
 //  STATIC MAP (topic page)
 // ===========================================================================
@@ -384,11 +395,9 @@ async function createLeafletMap(element, { markers, interactive, apiKey, cluster
     doubleClickZoom: interactive,
   });
 
-  // If the LocationIQ key is available we use its tiles, otherwise we
-  // fall back to the standard OpenStreetMap tiles.
-  const tileUrl = apiKey
-    ? `https://{s}-tiles.locationiq.com/v3/streets/r/{z}/{x}/{y}.png?key=${encodeURIComponent(apiKey)}`
-    : "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
+  // No fallback to the public tile.openstreetmap.org servers: their usage
+  // policy forbids heavy use, so a key is required (see hasApiKey).
+  const tileUrl = `https://{s}-tiles.locationiq.com/v3/streets/r/{z}/{x}/{y}.png?key=${encodeURIComponent(apiKey)}`;
 
   L.tileLayer(tileUrl, {
     subdomains: "abc",

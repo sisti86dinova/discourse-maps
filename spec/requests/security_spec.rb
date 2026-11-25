@@ -145,5 +145,53 @@ RSpec.describe "Discourse Maps security" do
       get "/map.json", params: { year: 2026, month: 13 }
       expect(response.status).to eq(200)
     end
+
+    it "caps the topics to discourse_maps_max_topics, most recent first" do
+      listed.update!(created_at: 1.day.ago)
+      SiteSetting.discourse_maps_max_topics = 1
+      sign_in(admin)
+
+      get "/map.json"
+      body = response.parsed_body
+      expect(body["topics"].map { |t| t["id"] }).to eq([unlisted.id])
+      expect(body["truncated"]).to eq(true)
+      expect(body["max_topics"]).to eq(1)
+    end
+
+    it "doesn't flag the result as truncated below the cap" do
+      get "/map.json"
+      expect(response.parsed_body["truncated"]).to eq(false)
+    end
+
+    describe "rate limiting" do
+      before do
+        RateLimiter.enable
+        SiteSetting.discourse_maps_requests_per_minute = 2
+      end
+
+      it "limits anonymous requests" do
+        2.times do
+          get "/map.json"
+          expect(response.status).to eq(200)
+        end
+        get "/map.json"
+        expect(response.status).to eq(429)
+      end
+
+      it "doesn't limit the HTML page" do
+        3.times do
+          get "/map"
+          expect(response.status).to eq(200)
+        end
+      end
+
+      it "doesn't limit staff" do
+        sign_in(admin)
+        3.times do
+          get "/map.json"
+          expect(response.status).to eq(200)
+        end
+      end
+    end
   end
 end

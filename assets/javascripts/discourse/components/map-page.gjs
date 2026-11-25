@@ -677,6 +677,14 @@ export default class MapPage extends Component {
       {{! Map with all the pins of the filtered result. }}
       <DiscourseMapsMap @interactive={{true}} @markers={{this.markers}} />
 
+      {{! The server caps the result (discourse_maps_max_topics): say so,
+          otherwise older topics would silently be missing. }}
+      {{#if @truncated}}
+        <p class="discourse-maps-page__truncated alert alert-info">
+          {{i18n "discourse_maps.list.truncated" count=@maxTopics}}
+        </p>
+      {{/if}}
+
       {{! List of geolocated topics (ordered by date, scroll-paginated). }}
       <div class="discourse-maps-list">
         {{#each this.visibleRows as |row|}}

@@ -19,11 +19,17 @@ import {
   DEFAULT_MARKER_COLOR,
   MARKER_HEIGHT,
   MARKER_WIDTH,
+  providerApiKey,
   staticMapUrl,
 } from "../lib/discourse-maps-provider";
 
 export default class DiscourseMapsStaticMap extends Component {
   @service siteSettings;
+
+  // Without a key the provider would only return an error image.
+  get hasApiKey() {
+    return Boolean(providerApiKey(this.siteSettings));
+  }
 
   get imageUrl() {
     return staticMapUrl(this.args.location, this.siteSettings);
@@ -34,27 +40,29 @@ export default class DiscourseMapsStaticMap extends Component {
   }
 
   <template>
-    <div class="discourse-maps-static">
-      <img
-        src={{this.imageUrl}}
-        alt={{@location.display_name}}
-        class="discourse-maps-static__image"
-      />
-      <svg
-        class="discourse-maps-static__pin"
-        xmlns="http://www.w3.org/2000/svg"
-        width={{MARKER_WIDTH}}
-        height={{MARKER_HEIGHT}}
-        viewBox="0 0 25 41"
-      >
-        <path
-          fill={{this.pinColor}}
-          stroke="#ffffff"
-          stroke-width="1.5"
-          d="M12.5 0C5.6 0 0 5.6 0 12.5 0 20 12.5 41 12.5 41S25 20 25 12.5C25 5.6 19.4 0 12.5 0Z"
+    {{#if this.hasApiKey}}
+      <div class="discourse-maps-static">
+        <img
+          src={{this.imageUrl}}
+          alt={{@location.display_name}}
+          class="discourse-maps-static__image"
         />
-        <circle cx="12.5" cy="12.5" r="4.5" fill="#ffffff" />
-      </svg>
-    </div>
+        <svg
+          class="discourse-maps-static__pin"
+          xmlns="http://www.w3.org/2000/svg"
+          width={{MARKER_WIDTH}}
+          height={{MARKER_HEIGHT}}
+          viewBox="0 0 25 41"
+        >
+          <path
+            fill={{this.pinColor}}
+            stroke="#ffffff"
+            stroke-width="1.5"
+            d="M12.5 0C5.6 0 0 5.6 0 12.5 0 20 12.5 41 12.5 41S25 20 25 12.5C25 5.6 19.4 0 12.5 0Z"
+          />
+          <circle cx="12.5" cy="12.5" r="4.5" fill="#ffffff" />
+        </svg>
+      </div>
+    {{/if}}
   </template>
 }

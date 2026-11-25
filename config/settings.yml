@@ -49,6 +49,23 @@ plugins:
   discourse_maps_hide_on_tag_pages:
     default: false
 
+  # Max number of topics returned by /map.json (most recent first): bounds
+  # the response size and the work per request on forums with many
+  # geolocated topics. The page tells the user when the result was cut.
+  discourse_maps_max_topics:
+    type: integer
+    default: 500
+    min: 1
+    max: 5000
+
+  # Max /map.json requests per minute for each user (or IP address, for
+  # anonymous visitors). Staff is not limited.
+  discourse_maps_requests_per_minute:
+    type: integer
+    default: 60
+    min: 1
+    max: 1000
+
   # Background color of the "cluster" pin (the numbered circle that indicates
   # multiple overlapping topics at the same point on the map).
   discourse_maps_cluster_color:

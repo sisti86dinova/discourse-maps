@@ -9,9 +9,11 @@ en:
     discourse_maps_hide_from_lists: "Topic lists where topics with the map tag are hidden (latest also covers the homepage). They always remain visible on the /map page."
     discourse_maps_hide_on_category_pages: "Also hide topics with the map tag from the lists above on category pages."
     discourse_maps_hide_on_tag_pages: "Also hide topics with the map tag from the lists above on tag pages."
+    discourse_maps_max_topics: "Maximum number of topics shown on the /map page (the most recent ones). When there are more, the page asks to narrow the results with the filters."
+    discourse_maps_requests_per_minute: "Maximum number of /map page data requests per minute for each user (or IP address, for anonymous visitors). Staff is not limited."
     discourse_maps_cluster_color: "Background color of the \"cluster\" pin (the numbered circle shown when multiple topics share the same map location)."
     discourse_maps_default_date_filter: "Period shown on the /map page before any filter is manually picked: 'today' shows only today's events, 'upcoming' shows today's and every future one."
     discourse_maps_provider: "Map/geocoding provider to use."
-    discourse_maps_locationiq_api_key: "LocationIQ API key (used when the provider is 'locationiq')."
+    discourse_maps_locationiq_api_key: "LocationIQ API key (required when the provider is 'locationiq'). Use a public pk. token restricted to your forum's domain."
     discourse_maps_google_api_key: "Google Maps API key (used when the provider is 'google')."
 

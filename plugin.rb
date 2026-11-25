@@ -225,8 +225,7 @@ after_initialize do
       tag = map_tag
       return nil unless tag
 
-      topic_ids = TopicCustomField.where(name: LOCATION_FIELD).pluck(:topic_id)
-      return nil if topic_ids.empty?
+      topic_ids = TopicCustomField.where(name: LOCATION_FIELD).select(:topic_id)
 
       scope =
         Topic
@@ -546,6 +545,7 @@ after_initialize do
     #                     default view on /map, "today" or "upcoming",
     #                     is controlled by the discourse_maps_default_date_filter
     #                     site setting (applied client-side, see routes/map.js).
+    #   - limit         : max number of topics returned (most recent first).
     def self.map_topics(
       guardian,
       category_id: nil,
@@ -554,7 +554,8 @@ after_initialize do
       year: nil,
       month: nil,
       day: nil,
-      upcoming: false
+      upcoming: false,
+      limit: nil
     )
       base = base_map_scope(guardian)
       return [] unless base
@@ -574,7 +575,13 @@ after_initialize do
       date_range = date_filter_range(year, month, day, upcoming: upcoming)
       scope = filter_by_date_range(scope, *date_range) if date_range
 
-      topics = scope.includes(:tags).distinct.order(created_at: :desc).to_a
+      topics =
+        scope
+          .includes(:tags)
+          .distinct
+          .order(created_at: :desc)
+          .limit(limit)
+          .to_a
 
       # Preload custom fields to avoid N+1 queries.
       Topic.preload_custom_fields(topics, [LOCATION_FIELD])
@@ -862,6 +869,13 @@ after_initialize do
     # For the direct (HTML) page load this isn't an XHR request.
     skip_before_action :check_xhr, only: [:index]
 
+    # /map.json is public and rebuilds the whole result and filter options
+    # on every request: a per user (or per IP, for anonymous visitors)
+    # limit keeps it from being used to load the server. Staff is exempt.
+    before_action :rate_limit_map_json,
+                  only: [:index],
+                  if: -> { request.format.json? }
+
     def index
       respond_to do |format|
         # Boots the Ember application: the client route will then request the JSON.
@@ -880,16 +894,39 @@ after_initialize do
             upcoming: ActiveModel::Type::Boolean.new.cast(params[:upcoming])
           }
 
-          topics = ::DiscourseMaps.map_topics(guardian, **filter_params)
+          # One extra topic tells whether the result was cut at the limit.
+          max_topics = SiteSetting.discourse_maps_max_topics
+          topics =
+            ::DiscourseMaps.map_topics(
+              guardian,
+              **filter_params,
+              limit: max_topics + 1
+            )
+          truncated = topics.size > max_topics
+          topics = topics.first(max_topics)
           filters =
             ::DiscourseMaps.map_filter_options(guardian, **filter_params)
 
-          render json: { topics: topics, filters: filters }
+          render json: {
+                   topics: topics,
+                   filters: filters,
+                   truncated: truncated,
+                   max_topics: max_topics
+                 }
         end
       end
     end
 
     private
+
+    def rate_limit_map_json
+      RateLimiter.new(
+        current_user,
+        "discourse-maps-json-#{current_user&.id || request.remote_ip}",
+        SiteSetting.discourse_maps_requests_per_minute,
+        1.minute
+      ).performed!
+    end
 
     # Max values accepted in a comma-separated filter (tags, countries):
     # the UI only ever sends one, this just bounds the work per request.

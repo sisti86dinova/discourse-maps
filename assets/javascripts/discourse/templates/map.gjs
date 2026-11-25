@@ -14,6 +14,7 @@ export default <template>
       @countryCode={{@controller.countryCode}}
       @day={{@controller.day}}
       @filters={{@controller.model.filters}}
+      @maxTopics={{@controller.model.max_topics}}
       @month={{@controller.month}}
       @onChangeCategory={{@controller.updateCategory}}
       @onChangeCountry={{@controller.updateCountry}}
@@ -24,6 +25,7 @@ export default <template>
       @onResetDate={{@controller.resetDateFilter}}
       @selectedTags={{@controller.selectedTags}}
       @topics={{@controller.model.topics}}
+      @truncated={{@controller.model.truncated}}
       @upcoming={{@controller.upcoming}}
       @year={{@controller.year}}
     />

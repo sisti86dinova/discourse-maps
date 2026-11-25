@@ -7,6 +7,9 @@ en:
         empty: "No geolocated topics yet."
         empty_today: "No geolocated topics available for today's date."
         empty_upcoming: "No geolocated topics scheduled from today onwards."
+        truncated: "Only the %{count} most recent topics are shown. Use the filters to narrow the results."
+      map:
+        not_configured: "The map isn't available: no API key is configured for the map provider."
       popup:
         category: "Category:"
         tags: "Tags:"
