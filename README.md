@@ -119,6 +119,12 @@ interactive map, and static map all switch together based on
 
 Recommended configuration for a production forum, in this order.
 
+The map page is served at **`https://<your-forum>/mappa`** (its data at
+`/mappa.json`), and a **Map** link to it is added to the sidebar
+automatically. Use `/mappa` in menus, announcements and links: `/map` isn't
+this plugin's page (see
+[Compatibility with the Locations plugin](#compatibility-with-the-locations-plugin)).
+
 1. **Install the plugin** in the container's `app.yml` and rebuild:
 
    ```yaml
@@ -176,8 +182,9 @@ Recommended configuration for a production forum, in this order.
    rake discourse_maps:backfill_country_codes
    ```
 
-10. **Check it works:** open `/mappa` as an anonymous visitor (the map loads,
-    no "not configured" notice), create a topic from its **New topic** button
+10. **Check it works:** open `https://<your-forum>/mappa` as an anonymous
+    visitor (the map loads, no "not configured" notice, the sidebar's **Map**
+    link points to `/mappa`), create a topic from its **New topic** button
     with a location, and check that it appears on `/mappa` and is hidden from
     the lists you selected.
 
