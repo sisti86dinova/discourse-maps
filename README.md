@@ -188,6 +188,37 @@ this plugin's page (see
     with a location, and check that it appears on `/mappa` and is hidden from
     the lists you selected.
 
+## Upgrading from 1.x to 2.0
+
+2.0 contains breaking changes. After rebuilding, check the following:
+
+1. **The map moved from `/map` to `/mappa`.** `/map` and `/map.json` no
+   longer serve this plugin (see
+   [Compatibility with the Locations plugin](#compatibility-with-the-locations-plugin)).
+   Update custom sidebar or header links, pinned posts, bookmarks and any
+   external integration that calls `/map.json`.
+
+2. **An API key is now required.** Without a key for the configured provider
+   the maps show a "not configured" notice: the fallback to the public
+   OpenStreetMap tile servers was removed (see
+   [An API key is required](#an-api-key-is-required)).
+
+3. **Publishing is enforced server-side.** Only admins and members of
+   `discourse_maps_new_topic_groups` can put a topic on the map, also through
+   the API and when editing. Moderators are no longer allowed unless they're
+   in one of these groups.
+
+4. **`/mappa.json` is capped and rate limited** through
+   `discourse_maps_max_topics` (500) and `discourse_maps_requests_per_minute`
+   (60, staff exempt). Review them if users or integrations need more.
+
+5. **API integrations that edit locations:** omitting the location on a
+   first-post edit now keeps it; removing it requires sending an empty
+   string.
+
+6. **Run the country code backfill once** (step 9 of the
+   [Deployment checklist](#deployment-checklist)).
+
 ## Compatibility with the Locations plugin
 
 The page lives at `/mappa`, not `/map`: the widely used

@@ -12,7 +12,7 @@
 
 # name: discourse-maps
 # about: Associate geographic information in topics and display on an interactive map.
-# version: 1.0.0
+# version: 2.0.0
 # authors: Stefano Sisti
 # url: https://github.com/sisti86dinova/discourse-maps
 # required_version: 2.7.0
